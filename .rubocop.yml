@@ -1,0 +1,126 @@
+# Standard's rules, run through RuboCop itself.
+inherit_gem:
+  standard: config/base.yml
+
+plugins:
+  - rubocop-performance
+
+AllCops:
+  TargetRubyVersion: 3.3
+  SuggestExtensions: false
+  Exclude:
+    - "tmp/**/*"
+    - "vendor/**/*"
+
+# A gem runs in other people's hot paths: every Performance cop (rubocop-performance 1.26.1),
+# the opt-in ones included. Department-level `Enabled: true` leaves those off.
+Performance/AncestorsInclude:
+  Enabled: true
+Performance/ArraySemiInfiniteRangeSlice:
+  Enabled: true
+Performance/BigDecimalWithNumericArgument:
+  Enabled: true
+Performance/BindCall:
+  Enabled: true
+Performance/BlockGivenWithExplicitBlock:
+  Enabled: true
+Performance/Caller:
+  Enabled: true
+Performance/CaseWhenSplat:
+  Enabled: true
+Performance/Casecmp:
+  Enabled: true
+Performance/ChainArrayAllocation:
+  Enabled: true
+  # Allocation counting only matters in code that ships: tests, benchmarks and scripts read better chained.
+  Exclude: &not_shipped
+    - "bench/**/*"
+    - "script/**/*"
+    - "test/**/*"
+Performance/CollectionLiteralInLoop:
+  Enabled: true
+  Exclude: *not_shipped
+Performance/CompareWithBlock:
+  Enabled: true
+Performance/ConcurrentMonotonicTime:
+  Enabled: true
+Performance/ConstantRegexp:
+  Enabled: true
+Performance/Count:
+  Enabled: true
+Performance/DeletePrefix:
+  Enabled: true
+Performance/DeleteSuffix:
+  Enabled: true
+Performance/Detect:
+  Enabled: true
+Performance/DoubleStartEndWith:
+  Enabled: true
+Performance/EndWith:
+  Enabled: true
+Performance/FixedSize:
+  Enabled: true
+Performance/FlatMap:
+  Enabled: true
+Performance/InefficientHashSearch:
+  Enabled: true
+Performance/IoReadlines:
+  Enabled: true
+Performance/MapCompact:
+  Enabled: true
+Performance/MapMethodChain:
+  Enabled: true
+Performance/MethodObjectAsBlock:
+  Enabled: true
+Performance/OpenStruct:
+  Enabled: true
+Performance/RangeInclude:
+  Enabled: true
+Performance/RedundantBlockCall:
+  Enabled: true
+Performance/RedundantEqualityComparisonBlock:
+  Enabled: true
+Performance/RedundantMatch:
+  Enabled: true
+Performance/RedundantMerge:
+  Enabled: true
+Performance/RedundantSortBlock:
+  Enabled: true
+Performance/RedundantSplitRegexpArgument:
+  Enabled: true
+Performance/RedundantStringChars:
+  Enabled: true
+Performance/RegexpMatch:
+  Enabled: true
+Performance/ReverseEach:
+  Enabled: true
+Performance/ReverseFirst:
+  Enabled: true
+Performance/SelectMap:
+  Enabled: true
+Performance/Size:
+  Enabled: true
+Performance/SortReverse:
+  Enabled: true
+Performance/Squeeze:
+  Enabled: true
+Performance/StartWith:
+  Enabled: true
+Performance/StringBytesize:
+  Enabled: true
+Performance/StringIdentifierArgument:
+  Enabled: true
+Performance/StringInclude:
+  Enabled: true
+Performance/StringReplacement:
+  Enabled: true
+Performance/Sum:
+  Enabled: true
+Performance/TimesMap:
+  Enabled: true
+Performance/UnfreezeString:
+  Enabled: true
+Performance/UriDefaultParser:
+  Enabled: true
+Performance/ZipWithoutBlock:
+  Enabled: true

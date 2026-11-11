@@ -1,0 +1,220 @@
+# Mapitaine
+
+Mapitaine writes the XML sitemaps of a Rails site in many languages, and rewrites only the files whose pages
+changed since the last build.
+
+You describe each kind of page once, as a small class that names its records, their URLs and their languages:
+
+```ruby
+# app/sitemaps/product_sitemap.rb
+class ProductSitemap < Mapitaine::Source
+  scope { Product.published }
+  url { |product, locale| product_url(product, locale:) }
+end
+```
+
+Mapitaine does the rest: one `<url>` per language, each listing every language of the page and the default one,
+files that never outgrow what the protocol allows, the sitemap index, and a build you can run every hour.
+
+## Why Mapitaine
+
+Mapitaine was written for a site of 30,000 pages in 24 languages, 720,000 URLs, where regenerating everything
+on each run was too slow to do often. It works differently from older generators in a few ways:
+
+- A page is one record in several languages, not a list of unrelated URLs. The `hreflang` links come from that:
+  every language lists all the others and itself, which search engines require before they trust any of them.
+- Each file holds a fixed range of ids, so a record stays in the same file from one build to the next. A build
+  asks the database one question per source, the count and the latest change of each range, and rewrites only
+  the files whose answer moved. No callback in your models: `update_all`, imports and deletions are seen too.
+- `lastmod` is the only hint search engines still read, so it is the date your content changed, in the files
+  and in the index. `priority` and `changefreq`, which Google ignores, are not written.
+- Search engines are told through [IndexNow](https://www.indexnow.org) which URLs changed. The ping endpoints
+  older gems call have been closed.
+- It never requests your pages. What it checks, it checks on the data it writes.
+
+On 30,000 records in 24 languages (SQLite in memory, Ruby 3.3.6 without YJIT, `bench/build.rb`):
+
+| Build | Time | Files written |
+|---|---|---|
+| Everything, 720,000 URLs | 31.9 s | 55 (17 MiB gzipped) |
+| Nothing new | 0.01 s | 0 |
+| 3 records changed | 1.0 s | 2 |
+
+Its only runtime dependency is Active Support.
+
+## Installation
+
+```ruby
+gem "mapitaine"
+```
+
+Mapitaine needs Ruby 3.3 and Rails 8.0, or newer.
+
+## Configuration
+
+```ruby
+# config/initializers/mapitaine.rb
+Mapitaine.configure do |config|
+  config.host = "https://www.example.com"
+  config.locales = %i[en fr de]   # default: I18n.available_locales
+  config.x_default = :en          # the language of hreflang="x-default"; none when left out
+end
+```
+
+Then tell crawlers where the index is, in `public/robots.txt`:
+
+```
+Sitemap: https://www.example.com/sitemap.xml
+```
+
+## Sources
+
+A source is a class in `app/sitemaps`. Its blocks run in an object that has your route helpers, already set to
+`config.host`.
+
+```ruby
+class ProductSitemap < Mapitaine::Source
+  # The records: an Active Record relation. Add the `includes` your other blocks need.
+  scope { Product.published.includes(:photos) }
+
+  # The URL of a record in a language. A path gets the host; nil leaves that language out.
+  url { |product, locale| product_url(product, locale:) }
+
+  # The languages a record exists in. Without it, every configured language.
+  locales { |product| product.translated_locales }
+
+  # The column that holds the date the content changed. Default: updated_at.
+  lastmod :content_updated_at
+
+  # Image URLs, for Google Images.
+  images { |product| product.photos.map(&:url) }
+end
+```
+
+A page in one language gets no `hreflang` link. A page that does not exist in the `x_default` language gets
+no `x-default` link.
+
+### When the date depends on more than one column
+
+`lastmod` also takes a block. The build then needs to know what to watch in the database, as an SQL expression:
+
+```ruby
+class ProductSitemap < Mapitaine::Source
+  scope { Product.published }
+  url { |product, locale| product_url(product, locale:) }
+  lastmod { |product| [product.updated_at, product.reviewed_at].compact.max }
+  fingerprint "GREATEST(products.updated_at, COALESCE(products.reviewed_at, products.updated_at))"
+end
+```
+
+A column that moves when the content does not, such as an `updated_at` touched by a view counter, makes every
+build rewrite files for nothing and tells search engines a date that is not true. Give such a model a column of
+its own for content changes.
+
+### Pages that are not records
+
+The scope can be any list. Such a source is one file, rendered at each build and published when it differs:
+
+```ruby
+class PageSitemap < Mapitaine::Source
+  scope { %i[root about contact] }
+  url { |page, locale| public_send(:"#{page}_url", locale:) }
+end
+```
+
+### Files
+
+A source named `ProductSitemap` writes `sitemap-product-00000.xml.gz`, `sitemap-product-00001.xml.gz` and so
+on, one per range of ids; `slug "products"` changes the middle part. The size of a range comes from the number
+of languages, so that a file stays under 50,000 URLs and 50 MiB: 50,000 ids with one language, 554 with 24.
+`shard_size 1_000` sets it yourself. A range that still outgrows a file continues in
+`sitemap-product-00000-2.xml.gz`.
+
+The model needs an integer primary key.
+
+## Building
+
+```sh
+bin/rails mapitaine:build     # rewrite the files whose records changed
+bin/rails mapitaine:rebuild   # rewrite everything
+```
+
+`Mapitaine.build` does the same from Ruby and returns what it did (`written`, `kept`, `deleted`, `url_count`,
+`submitted`, `warnings`). Run it on a schedule, every night or every hour. With Solid Queue:
+
+```yaml
+# config/recurring.yml
+production:
+  sitemap:
+    command: "Mapitaine.build"
+    schedule: every hour
+```
+
+A build writes the sitemap files first, then the index, then removes the files no range fills any more, then
+writes `sitemap-manifest.json`, its memory of what each file held. A build that fails midway is repaired by the
+next one. Changing the host, the languages or the version of Mapitaine rewrites everything once.
+
+## Storage
+
+Files go to `public/` by default. To send them to S3 or anything that speaks its API, add `aws-sdk-s3` to your
+Gemfile:
+
+```ruby
+Mapitaine.configure do |config|
+  config.storage = Mapitaine::Storage::S3.new(bucket: "example-sitemaps", prefix: "sitemaps")
+  config.sitemaps_url = "https://cdn.example.com/sitemaps"   # where those files are served from
+end
+```
+
+Sitemaps served from another host than the pages they list are accepted when `robots.txt` names the index.
+
+A storage is any object with `read(name)`, `write(name, path)` and `delete(name)`.
+
+## IndexNow
+
+```ruby
+config.index_now_key = "c1f0e2b4a6d84f3e9b7a5c3d1e0f2a4b"   # yours: 8 to 128 characters, a-z, A-Z, 0-9 and -
+```
+
+Each build then publishes the key as `<key>.txt` next to the sitemaps, and sends the URLs of the rewritten files
+whose `lastmod` is later than the previous build. The first build sends nothing. When the key cannot live at
+the root of the site, host it yourself and set `config.index_now_key_location` to its URL. An endpoint that
+cannot be reached is a warning, never a failed build.
+
+## Checking
+
+```sh
+bin/rails mapitaine:check
+```
+
+It renders every sitemap without publishing or submitting anything, and fails on a URL outside `config.host`,
+a URL listed twice in a source, or a `lastmod` in the future. A build reports the same, for the files it
+rewrites, in `warnings`.
+
+## Instrumentation
+
+`build.mapitaine` wraps a build, with `full` and `result` in its payload; `shard.mapitaine` wraps each file
+range it renders, with `source` and `shard`.
+
+```ruby
+ActiveSupport::Notifications.subscribe("build.mapitaine") do |event|
+  built = event.payload[:result]
+  Rails.logger.info "Sitemap: #{built.written.size} files written in #{event.duration.round} ms"
+end
+```
+
+## Not there yet
+
+Video and news sitemaps, models without an integer primary key, and building several ranges in parallel.
+
+## Development
+
+```sh
+bundle exec rake test
+bundle exec rubocop
+bundle exec ruby bench/build.rb
+```
+
+## License
+
+MIT. See [LICENSE](LICENSE).

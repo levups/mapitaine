@@ -1,0 +1,13 @@
+# The actions are pinned by commit, not by tag, which their owner (or an attacker) can move: Dependabot proposes
+# each new version, a week after its release, in one pull request. The same file in every Level UP Solutions gem.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    groups:
+      actions:
+        patterns: ["*"]

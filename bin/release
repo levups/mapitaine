@@ -1,0 +1,232 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# Releases the gem through a pull request, as main takes no direct push. CHANGELOG.md's Unreleased section
+# becomes the version's and the version constant is bumped on a branch release/vX.Y.Z, whose pull request merges
+# itself once CI is green. The merge commit then gets a signed tag vX.Y.Z, which starts
+# .github/workflows/release.yml: it publishes the gem to RubyGems and the GitHub release. The same file in every
+# Level UP Solutions gem.
+#
+#   bin/release minor              # or patch, major, or an exact version such as 1.2.0
+#   bin/release minor --dry-run    # shows the notes and the changes, touches nothing
+#   bin/release --tag 1.2.0        # waits for the release pull request, then tags it (after a Ctrl-C)
+#
+# Used by the release workflow too:
+#
+#   bin/release --check v1.2.0     # fails unless the tag matches the gemspec's version and has notes
+#   bin/release --notes v1.2.0     # the GitHub release notes: the version's section of CHANGELOG.md
+#   bin/release --title v1.2.0     # the GitHub release title, "Mapitaine 1.2.0"
+
+require "date"
+require "json"
+require "open3"
+require "optparse"
+require "rubygems"
+require "tempfile"
+
+CHANGELOG = "CHANGELOG.md"
+REFERENCE = /^\[([^\]]+)\]: (\S+)$/
+
+def run(*command)
+  output, status = Open3.capture2e(*command)
+  abort "#{command.join(" ")} failed:\n#{output}" unless status.success?
+  output
+end
+
+# A version's section: its heading, then everything up to the next heading or the reference links.
+def section(version)
+  /^## \[#{Regexp.escape(version)}\][^\n]*\n(.*?)(?=^## |^\[[^\]]+\]: |\z)/m
+end
+
+spec = Gem::Specification.load(Dir["*.gemspec"].first) or abort "No gemspec here"
+current = spec.version
+repo_url = spec.metadata["source_code_uri"] || spec.homepage
+display_name = File.read("README.md", encoding: "UTF-8")[/\A# (\S+)/, 1] || spec.name
+changelog = File.read(CHANGELOG, encoding: "UTF-8")
+
+# Waits for the release pull request to merge, then tags its merge commit and pushes the tag alone. Stops when
+# the pull request can't merge by itself: closed, auto-merge turned off, or a required check failed.
+publish = lambda do |target|
+  tag = "v#{target}"
+  branch = "release/#{tag}"
+  resume = "bin/release --tag #{target} tags it once merged"
+  puts "Waiting for #{branch} to merge (Ctrl-C stops waiting; #{resume})"
+  commit = loop do
+    output, status = Open3.capture2("gh", "pr", "view", branch, "--json", "state,url,mergeCommit,autoMergeRequest")
+    if status.success? # otherwise GitHub didn't answer: ask again
+      pull_request = JSON.parse(output)
+      url = pull_request["url"]
+      oid = pull_request.dig("mergeCommit", "oid")
+      break oid if pull_request["state"] == "MERGED" && oid
+      abort "#{url} was closed unmerged: #{tag} not pushed" if pull_request["state"] == "CLOSED"
+    end
+    if status.success? && pull_request["state"] == "OPEN"
+      abort "#{url} has auto-merge off: merge it, then #{resume}" if pull_request["autoMergeRequest"].nil?
+      # Exits non-zero while checks are pending or failing; prints nothing as long as none reported.
+      checks = Open3.capture2("gh", "pr", "checks", branch, "--required", "--json", "name,bucket").first
+      checks = checks.start_with?("[") ? JSON.parse(checks) : []
+      failed = checks.filter_map { |check| check["name"] if check["bucket"] == "fail" }
+      abort "#{url}: #{failed.join(", ")} failed. Fix it on #{branch}; #{resume}" if failed.any?
+    end
+    sleep 20
+  rescue Interrupt
+    abort "\nStopped waiting: #{resume}"
+  end
+  run("git", "fetch", "--quiet", "--tags", "origin", "main")
+  notes = run("git", "show", "#{commit}:#{CHANGELOG}")
+  abort "#{commit[0, 7]} has no #{target} section in #{CHANGELOG}" unless notes.match?(section(target.to_s))
+  tagged = Open3.capture2("git", "rev-parse", "--verify", "--quiet", "#{tag}^{commit}").first.strip
+  if tagged.empty?
+    run("git", "tag", "--annotate", "--sign", tag, "-m", "#{display_name} #{target}", commit)
+  elsif tagged != commit
+    abort "#{tag} already tags #{tagged[0, 7]}, not the merge commit #{commit[0, 7]}"
+  end
+  run("git", "push", "origin", tag)
+  puts "Pushed #{tag}: #{repo_url}/actions/workflows/release.yml publishes it to RubyGems, then #{repo_url}/releases/tag/#{tag}"
+  # Local housekeeping, after the release is out: a failure here only warns.
+  if run("git", "branch", "--show-current").strip == "main" && run("git", "status", "--porcelain", "--untracked-files=no").empty?
+    output, status = Open3.capture2e("git", "merge", "--quiet", "--ff-only", "origin/main")
+    warn "main not fast-forwarded to origin/main:\n#{output}" unless status.success?
+  end
+  Open3.capture2e("git", "branch", "--quiet", "--delete", "--force", branch)
+end
+
+mode = :release
+dry_run = false
+assume_yes = false
+OptionParser.new do |parser|
+  parser.banner = "Usage: bin/release (patch | minor | major | X.Y.Z) [--dry-run] [--yes] | --tag X.Y.Z"
+  parser.on("--dry-run", "Show the notes and the changes, touch nothing") { dry_run = true }
+  parser.on("--yes", "Do not ask before opening the release pull request") { assume_yes = true }
+  parser.on("--tag", "Wait for the release pull request of the version given, then tag it") { mode = :tag }
+  parser.on("--check", "Fail unless the tag given matches the gemspec's version and has notes") { mode = :check }
+  parser.on("--notes", "Print the release notes of the tag given") { mode = :notes }
+  parser.on("--title", "Print the release title of the tag given") { mode = :title }
+end.parse!
+argument = ARGV.shift or abort "Which version? patch, minor, major or X.Y.Z (bin/release --help)"
+
+if mode != :release
+  version = argument.delete_prefix("v")
+  notes = changelog[section(version), 1].to_s.strip
+  case mode
+  when :check
+    abort "Tag #{argument}, but #{spec.name}.gemspec says #{current}" unless version == current.to_s
+    abort "#{CHANGELOG} has no notes for #{version}" if notes.empty?
+    puts "#{argument} matches #{spec.name} #{current}"
+  when :notes
+    abort "#{CHANGELOG} has no notes for #{version}" if notes.empty?
+    compare = changelog.scan(REFERENCE).to_h[version]
+    puts notes
+    puts "", "**Full diff**: #{compare}" if compare&.include?("/compare/")
+  when :title
+    puts "#{display_name} #{version}"
+  when :tag
+    publish.call(Gem::Version.new(version))
+  end
+  exit
+end
+
+major, minor, patch = current.segments.first(3).fill(0, current.segments.size...3)
+target = Gem::Version.new(
+  case argument
+  when "major" then "#{major + 1}.0.0"
+  when "minor" then "#{major}.#{minor + 1}.0"
+  when "patch" then "#{major}.#{minor}.#{patch + 1}"
+  else argument.delete_prefix("v")
+  end
+)
+tag = "v#{target}"
+
+# The tree, the branch, the tags and CI.
+# CHANGELOG.md alone may be uncommitted: the notes written for this release, committed with the version.
+uncommitted = run("git", "status", "--short", "--", ".", ":(exclude)#{CHANGELOG}")
+abort "Uncommitted changes:\n#{uncommitted}" unless uncommitted.empty?
+branch = run("git", "branch", "--show-current").strip
+abort "On #{branch}: releases are cut from main" unless branch == "main"
+run("git", "fetch", "--quiet", "--tags", "origin", "main")
+head = run("git", "rev-parse", "HEAD").strip
+abort "main is not origin/main: pull or push first" unless head == run("git", "rev-parse", "origin/main").strip
+released = run("git", "tag", "--list", "v*").split.map { |name| Gem::Version.new(name.delete_prefix("v")) }
+abort "#{target} is not above #{released.max}, the last release" if released.any? && target <= released.max
+abort "#{target} is below #{current}, the gemspec's version" if target < current
+previous = released.max
+
+runs = JSON.parse(run("gh", "run", "list", "--commit", head, "--workflow", "ci.yml", "--json", "status,conclusion,url"))
+unless runs.first&.fetch("conclusion") == "success"
+  state = runs.first ? runs.first.values_at("status", "conclusion", "url").join(" ").squeeze(" ") : "no run"
+  abort "CI is not green on #{head[0, 7]} (#{state}): wait for it, or fix it"
+end
+
+# CHANGELOG.md: the Unreleased entries become the version's section, unless a commit already wrote it.
+unreleased = changelog[section("Unreleased"), 1].to_s.strip
+if changelog.match?(section(target.to_s))
+  abort "#{CHANGELOG} has a #{target} section and Unreleased entries: move them" unless unreleased.empty?
+else
+  abort "#{CHANGELOG}'s Unreleased section is empty: nothing to release" if unreleased.empty?
+  changelog = changelog.sub(section("Unreleased")) { "## [Unreleased]\n\n## [#{target}] — #{Date.today.iso8601}\n\n#{unreleased}\n\n" }
+end
+
+# Reference links at the end: Unreleased compares with the new tag, then each version newest first.
+references = changelog.scan(REFERENCE).to_h
+references["Unreleased"] = "#{repo_url}/compare/#{tag}...HEAD"
+references[target.to_s] = previous ? "#{repo_url}/compare/v#{previous}...#{tag}" : "#{repo_url}/releases/tag/#{tag}"
+unreleased_link = references.delete("Unreleased")
+versions = references.sort_by { |name, _url| Gem::Version.new(name) }.reverse
+links = [["Unreleased", unreleased_link], *versions].map { |name, url| "[#{name}]: #{url}" }
+changelog = "#{changelog.gsub(/^#{REFERENCE.source}\n?/, "").rstrip}\n\n#{links.join("\n")}\n"
+
+# The version constant, and Gemfile.lock where it is committed.
+changes = {CHANGELOG => changelog}
+if target != current
+  constant = /^(\s*VERSION = )(["'])#{Regexp.escape(current.to_s)}\2/
+  holders = Dir["lib/**/version.rb"].select { |path| File.read(path).match?(constant) }
+  abort "Expected one VERSION = \"#{current}\" in lib/**/version.rb, found #{holders}" unless holders.one? && File.read(holders.first).scan(constant).one?
+  changes[holders.first] = File.read(holders.first).sub(constant) { "#{$1}#{$2}#{target}#{$2}" }
+  unless run("git", "ls-files", "Gemfile.lock").empty?
+    lock = File.read("Gemfile.lock").sub(/^(    #{Regexp.escape(spec.name)} \()#{Regexp.escape(current.to_s)}\)/) { "#{$1}#{target})" }
+    changes["Gemfile.lock"] = lock
+  end
+end
+changes.reject! { |path, text| File.read(path, encoding: "UTF-8") == text }
+
+puts "#{display_name} #{current} → #{target}, through a pull request, then tagged #{tag}", ""
+puts changelog[section(target.to_s), 1].strip, ""
+if dry_run
+  changes.each do |path, text|
+    Tempfile.create do |file|
+      file.write(text)
+      file.flush
+      diff = Open3.capture2("git", "diff", "--no-index", "--src-prefix=", "--dst-prefix=", path, file.path).first
+      puts diff.gsub(/\S*#{Regexp.escape(File.basename(file.path))}/, path)
+    end
+  end
+  puts "Dry run: nothing written"
+  exit
+end
+
+abort "Nothing to change for #{target}: if its pull request merged, bin/release --tag #{target} tags it" if changes.empty?
+unless assume_yes
+  print "Open the release pull request, then push #{tag} and publish #{spec.name} #{target} once it merges? [y/N] "
+  abort "Stopped" unless $stdin.gets.to_s.strip.casecmp?("y")
+end
+
+branch = "release/#{tag}"
+title = "Release #{target}"
+body = "#{changelog[section(target.to_s), 1].strip}\n\nOnce merged, `bin/release` tags the merge commit #{tag}, " \
+  "which publishes the gem."
+begin
+  run("git", "switch", "--quiet", "--create", branch)
+  changes.each { |path, text| File.write(path, text) }
+  run("git", "commit", "--quiet", "-m", title, "--", *changes.keys)
+  run("git", "push", "--quiet", "origin", branch)
+  run("git", "switch", "--quiet", "main")
+  run("gh", "pr", "create", "--base", "main", "--head", branch, "--title", title, "--body", body)
+  run("gh", "pr", "merge", branch, "--auto", "--squash")
+rescue SystemExit
+  warn "Stopped before #{branch}'s pull request merges by itself. Either finish by hand (open it, merge it, then " \
+    "bin/release --tag #{target}), or undo and start again: git switch main && git branch -D #{branch} && " \
+    "git push origin :#{branch} (the notes are in #{branch}'s commit)"
+  raise
+end
+puts "Opened #{JSON.parse(run("gh", "pr", "view", branch, "--json", "url"))["url"]}: it merges itself once CI is green"
+publish.call(target)

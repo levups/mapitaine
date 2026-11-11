@@ -1,0 +1,16 @@
+name: Feature request
+description: A sitemap Mapitaine cannot write yet, a storage it cannot reach
+body:
+  - type: textarea
+    id: need
+    attributes:
+      label: What you need
+      description: The pages and sitemap you are trying to produce, and what stops you today.
+    validations:
+      required: true
+  - type: textarea
+    id: api
+    attributes:
+      label: How you would write it
+      description: The source class or configuration you would like to write.
+      render: ruby
