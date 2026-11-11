@@ -16,10 +16,12 @@ end
 Mapitaine does the rest: one `<url>` per language, each listing every language of the page and the default one,
 files that never outgrow what the protocol allows, the sitemap index, and a build you can run every hour.
 
+The guide and the benchmarks are also on the website: <https://levups.github.io/mapitaine/>.
+
 ## Why Mapitaine
 
 Mapitaine was written for a site of 30,000 pages in 24 languages, 720,000 URLs, where regenerating everything
-on each run was too slow to do often. It works differently from older generators in a few ways:
+on each run is time spent on pages that did not change. It works differently from older generators in a few ways:
 
 - A page is one record in several languages, not a list of unrelated URLs. The `hreflang` links come from that:
   every language lists all the others and itself, which search engines require before they trust any of them.
@@ -229,6 +231,7 @@ Video and news sitemaps, models without an integer primary key, and building sev
 bundle exec rake test
 bundle exec rubocop
 bundle exec ruby bench/build.rb
+bundle exec rake docs:highlight   # after editing a code block in docs/
 ```
 
 ## License

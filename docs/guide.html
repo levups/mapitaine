@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mapitaine Guide</title>
+<meta name="description" content="Install Mapitaine, describe your pages and their languages, build the sitemaps on a schedule, store them through Active Storage and submit changes to IndexNow.">
+<link rel="canonical" href="https://levups.github.io/mapitaine/guide.html">
+<meta property="og:title" content="Mapitaine Guide">
+<meta property="og:description" content="Install Mapitaine, describe your pages and their languages, build the sitemaps on a schedule, store them through Active Storage and submit changes to IndexNow.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://levups.github.io/mapitaine/guide.html">
+<meta property="og:site_name" content="Level UP Solutions">
+<meta name="twitter:card" content="summary">
+<meta name="theme-color" content="#6b3fa0">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@800&family=Inter+Tight:wght@400;600&family=Fira+Code&display=swap">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a class="skip-link" href="#content">Skip to content</a>
+<div class="page">
+  <nav class="site-nav" aria-label="Site">
+    <a class="brand" href="./">Mapitaine</a>
+    <a href="guide.html" aria-current="page">Guide</a>
+    <a href="benchmarks.html">Benchmarks</a>
+    <a href="https://github.com/levups/mapitaine">GitHub</a>
+  </nav>
+
+  <main id="content">
+    <header>
+      <h1 class="page-title">Guide</h1>
+      <p class="lede">How to describe your pages, build the sitemaps on a schedule, store them, and tell search engines what changed.</p>
+      <ul class="toc">
+        <li><a href="#installation">Installation</a></li>
+        <li><a href="#sources">Sources</a></li>
+        <li><a href="#languages">Languages</a></li>
+        <li><a href="#lastmod">The date of a page</a></li>
+        <li><a href="#files">Files</a></li>
+        <li><a href="#building">Building</a></li>
+        <li><a href="#storage">Storage</a></li>
+        <li><a href="#indexnow">IndexNow</a></li>
+        <li><a href="#checking">Checking</a></li>
+        <li><a href="#instrumentation">Instrumentation</a></li>
+      </ul>
+    </header>
+
+    <section id="installation" aria-labelledby="installation-title">
+      <h2 id="installation-title">Installation</h2>
+      <div class="prose">
+<pre><code class="language-ruby"><span class="c1"># Gemfile</span>
+<span class="n">gem</span> <span class="s2">"mapitaine"</span></code></pre>
+        <p>Mapitaine needs Ruby 3.3 and Rails 8.0, or newer. Its only runtime dependency is Active Support. Set the host of the site in an initializer:</p>
+<pre><code class="language-ruby"><span class="c1"># config/initializers/mapitaine.rb</span>
+<span class="no">Mapitaine</span><span class="p">.</span><span class="nf">configure</span> <span class="k">do</span> <span class="o">|</span><span class="n">config</span><span class="o">|</span>
+  <span class="n">config</span><span class="p">.</span><span class="nf">host</span> <span class="o">=</span> <span class="s2">"https://www.example.com"</span>
+  <span class="n">config</span><span class="p">.</span><span class="nf">locales</span> <span class="o">=</span> <span class="sx">%i[en fr de]</span>   <span class="c1"># default: I18n.available_locales</span>
+  <span class="n">config</span><span class="p">.</span><span class="nf">x_default</span> <span class="o">=</span> <span class="ss">:en</span>          <span class="c1"># for hreflang="x-default"</span>
+<span class="k">end</span></code></pre>
+        <p>Then tell crawlers where the index is, in <code>public/robots.txt</code>:</p>
+<pre><code class="language-text">Sitemap: https://www.example.com/sitemap.xml</code></pre>
+      </div>
+    </section>
+
+    <section id="sources" aria-labelledby="sources-title">
+      <h2 id="sources-title">Sources</h2>
+      <div class="prose">
+        <p>A source is a class in <code>app/sitemaps</code> that inherits from <code>Mapitaine::Source</code>, one per kind of page. Its blocks run in an object that has your route helpers, already set to <code>config.host</code>.</p>
+<pre><code class="language-ruby"><span class="c1"># app/sitemaps/product_sitemap.rb</span>
+<span class="k">class</span> <span class="nc">ProductSitemap</span> <span class="o">&lt;</span> <span class="no">Mapitaine</span><span class="o">::</span><span class="no">Source</span>
+  <span class="c1"># The records: an Active Record relation. Add the includes your other blocks need.</span>
+  <span class="n">scope</span> <span class="p">{</span> <span class="no">Product</span><span class="p">.</span><span class="nf">published</span><span class="p">.</span><span class="nf">includes</span><span class="p">(</span><span class="ss">:photos</span><span class="p">)</span> <span class="p">}</span>
+
+  <span class="c1"># The URL of a record in a language. A path gets the host; nil leaves that language out.</span>
+  <span class="n">url</span> <span class="p">{</span> <span class="o">|</span><span class="n">product</span><span class="p">,</span> <span class="n">locale</span><span class="o">|</span> <span class="n">product_url</span><span class="p">(</span><span class="n">product</span><span class="p">,</span> <span class="n">locale</span><span class="p">:)</span> <span class="p">}</span>
+
+  <span class="c1"># Image URLs, for Google Images.</span>
+  <span class="n">images</span> <span class="p">{</span> <span class="o">|</span><span class="n">product</span><span class="o">|</span> <span class="n">product</span><span class="p">.</span><span class="nf">photos</span><span class="p">.</span><span class="nf">map</span><span class="p">(</span><span class="o">&amp;</span><span class="ss">:url</span><span class="p">)</span> <span class="p">}</span>
+<span class="k">end</span></code></pre>
+        <p>The model needs an integer primary key: files are cut by ranges of ids.</p>
+        <h3>Pages that are not records</h3>
+        <p>The scope can be any list. Such a source is one file, rendered at each build and published when it differs from the last one.</p>
+<pre><code class="language-ruby"><span class="k">class</span> <span class="nc">PageSitemap</span> <span class="o">&lt;</span> <span class="no">Mapitaine</span><span class="o">::</span><span class="no">Source</span>
+  <span class="n">scope</span> <span class="p">{</span> <span class="sx">%i[root about contact]</span> <span class="p">}</span>
+  <span class="n">url</span> <span class="p">{</span> <span class="o">|</span><span class="n">page</span><span class="p">,</span> <span class="n">locale</span><span class="o">|</span> <span class="n">public_send</span><span class="p">(</span><span class="ss">:"</span><span class="si">#{</span><span class="n">page</span><span class="si">}</span><span class="ss">_url"</span><span class="p">,</span> <span class="n">locale</span><span class="p">:)</span> <span class="p">}</span>
+<span class="k">end</span></code></pre>
+      </div>
+    </section>
+
+    <section id="languages" aria-labelledby="languages-title">
+      <h2 id="languages-title">Languages</h2>
+      <div class="prose">
+        <p>Every record gets one URL per language of <code>config.locales</code>. When records are not all translated, <code>locales</code> names the languages each one exists in:</p>
+<pre><code class="language-ruby"><span class="k">class</span> <span class="nc">ProductSitemap</span> <span class="o">&lt;</span> <span class="no">Mapitaine</span><span class="o">::</span><span class="no">Source</span>
+  <span class="n">scope</span> <span class="p">{</span> <span class="no">Product</span><span class="p">.</span><span class="nf">published</span> <span class="p">}</span>
+  <span class="n">url</span> <span class="p">{</span> <span class="o">|</span><span class="n">product</span><span class="p">,</span> <span class="n">locale</span><span class="o">|</span> <span class="n">product_url</span><span class="p">(</span><span class="n">product</span><span class="p">,</span> <span class="n">locale</span><span class="p">:)</span> <span class="p">}</span>
+  <span class="n">locales</span> <span class="p">{</span> <span class="o">|</span><span class="n">product</span><span class="o">|</span> <span class="n">product</span><span class="p">.</span><span class="nf">translated_locales</span> <span class="p">}</span>
+<span class="k">end</span></code></pre>
+        <p>Each <code>&lt;url&gt;</code> then lists every language of its page, itself included, as <code>hreflang</code> links. A page in one language gets no link. A page that does not exist in the <code>x_default</code> language gets no <code>x-default</code> link.</p>
+      </div>
+    </section>
+
+    <section id="lastmod" aria-labelledby="lastmod-title">
+      <h2 id="lastmod-title">The date of a page</h2>
+      <div class="prose">
+        <p><code>lastmod</code> is read from <code>updated_at</code>. Name another column when the content has its own:</p>
+<pre><code class="language-ruby"><span class="n">lastmod</span> <span class="ss">:content_updated_at</span></code></pre>
+        <p>A column that moves when the content does not, such as an <code>updated_at</code> touched by a view counter, makes every build rewrite files for nothing and tells search engines a date that is not true. Give such a model a column for content changes.</p>
+        <h3>When the date depends on more than one column</h3>
+        <p><code>lastmod</code> also takes a block. The build then needs to know what to watch in the database, as an SQL expression:</p>
+<pre><code class="language-ruby"><span class="k">class</span> <span class="nc">ProductSitemap</span> <span class="o">&lt;</span> <span class="no">Mapitaine</span><span class="o">::</span><span class="no">Source</span>
+  <span class="n">scope</span> <span class="p">{</span> <span class="no">Product</span><span class="p">.</span><span class="nf">published</span> <span class="p">}</span>
+  <span class="n">url</span> <span class="p">{</span> <span class="o">|</span><span class="n">product</span><span class="p">,</span> <span class="n">locale</span><span class="o">|</span> <span class="n">product_url</span><span class="p">(</span><span class="n">product</span><span class="p">,</span> <span class="n">locale</span><span class="p">:)</span> <span class="p">}</span>
+  <span class="n">lastmod</span> <span class="p">{</span> <span class="o">|</span><span class="n">product</span><span class="o">|</span> <span class="p">[</span><span class="n">product</span><span class="p">.</span><span class="nf">updated_at</span><span class="p">,</span> <span class="n">product</span><span class="p">.</span><span class="nf">reviewed_at</span><span class="p">].</span><span class="nf">compact</span><span class="p">.</span><span class="nf">max</span> <span class="p">}</span>
+  <span class="n">fingerprint</span> <span class="s2">"GREATEST(products.updated_at, COALESCE(products.reviewed_at, products.updated_at))"</span>
+<span class="k">end</span></code></pre>
+      </div>
+    </section>
+
+    <section id="files" aria-labelledby="files-title">
+      <h2 id="files-title">Files</h2>
+      <div class="prose">
+        <p>A source named <code>ProductSitemap</code> writes <code>sitemap-product-00000.xml.gz</code>, <code>sitemap-product-00001.xml.gz</code> and so on, one per range of ids. <code>slug "products"</code> changes the middle part, <code>config.filename</code> the first.</p>
+        <p>The size of a range comes from the number of languages, so that a file stays under the 50,000 URLs and 50 MiB the protocol allows: 50,000 ids with one language, 554 with 24. <code>shard_size 1_000</code> sets it yourself. A range that still outgrows a file continues in <code>sitemap-product-00000-2.xml.gz</code>.</p>
+        <p><code>sitemap.xml</code> is the index. It lists every file with the latest <code>lastmod</code> it holds, so a crawler fetches again only the files that changed.</p>
+      </div>
+    </section>
+
+    <section id="building" aria-labelledby="building-title">
+      <h2 id="building-title">Building</h2>
+      <div class="prose">
+<pre><code class="language-sh">bin/rails mapitaine:build     <span class="c"># rewrite the files whose records changed</span>
+bin/rails mapitaine:rebuild   <span class="c"># rewrite everything</span></code></pre>
+        <p><code>Mapitaine.build</code> does the same from Ruby and returns what it did: <code>written</code>, <code>kept</code>, <code>deleted</code>, <code>url_count</code>, <code>submitted</code> and <code>warnings</code>. Run it on a schedule, every night or every hour. With Solid Queue:</p>
+<pre><code class="language-yaml"><span class="c1"># config/recurring.yml</span>
+<span class="na">production</span><span class="pi">:</span>
+  <span class="na">sitemap</span><span class="pi">:</span>
+    <span class="na">command</span><span class="pi">:</span> <span class="s2">"</span><span class="s">Mapitaine.build"</span>
+    <span class="na">schedule</span><span class="pi">:</span> <span class="s">every hour</span></code></pre>
+        <h3>How a build decides</h3>
+        <p>For each source, one query groups the records by range of ids and returns the count and the latest change of each. A range whose answer is the one the last build stored keeps its file. The others are rendered again. Nothing hooks into your models, so <code>update_all</code>, imports and deletions are seen too.</p>
+        <p>A build writes the sitemap files first, then the index, then removes the files no range fills any more, then writes <code>sitemap-manifest.json</code>, its memory of what each file held. A build that fails midway is repaired by the next one. Changing the host, the languages or the version of Mapitaine rewrites everything once.</p>
+      </div>
+    </section>
+
+    <section id="storage" aria-labelledby="storage-title">
+      <h2 id="storage-title">Storage</h2>
+      <div class="prose">
+        <p>Files go to <code>public/</code> by default.</p>
+        <h3>Through Active Storage</h3>
+        <p>An app that already uses Active Storage can send the sitemaps through one of its services, with the credentials it already has. Give them a service of their own in <code>config/storage.yml</code>, in the bucket you want:</p>
+<pre><code class="language-yaml"><span class="na">sitemaps</span><span class="pi">:</span>
+  <span class="na">service</span><span class="pi">:</span> <span class="s">S3</span>
+  <span class="na">bucket</span><span class="pi">:</span> <span class="s">example-sitemaps</span>
+  <span class="na">region</span><span class="pi">:</span> <span class="s">eu-west-3</span>
+  <span class="na">public</span><span class="pi">:</span> <span class="kc">true</span>
+  <span class="na">access_key_id</span><span class="pi">:</span> <span class="s">&lt;%= Rails.application.credentials.dig(:aws, :access_key_id) %&gt;</span>
+  <span class="na">secret_access_key</span><span class="pi">:</span> <span class="s">&lt;%= Rails.application.credentials.dig(:aws, :secret_access_key) %&gt;</span></code></pre>
+<pre><code class="language-ruby"><span class="no">Mapitaine</span><span class="p">.</span><span class="nf">configure</span> <span class="k">do</span> <span class="o">|</span><span class="n">config</span><span class="o">|</span>
+  <span class="n">config</span><span class="p">.</span><span class="nf">storage</span> <span class="o">=</span> <span class="no">Mapitaine</span><span class="o">::</span><span class="no">Storage</span><span class="o">::</span><span class="no">ActiveStorage</span><span class="p">.</span><span class="nf">new</span><span class="p">(</span><span class="ss">:sitemaps</span><span class="p">,</span> <span class="ss">prefix: </span><span class="s2">"sitemaps"</span><span class="p">)</span>
+  <span class="n">config</span><span class="p">.</span><span class="nf">sitemaps_url</span> <span class="o">=</span> <span class="s2">"https://cdn.example.com/sitemaps"</span>   <span class="c1"># where those files are served from</span>
+<span class="k">end</span></code></pre>
+        <p>No blob is created: the files keep their names as keys, and nothing is written to the database. Any service works that serves a key at a stable URL: S3, Google Cloud Storage, Azure, a mirror of them. The Disk service does not, it scatters keys in subfolders: keep the default for files on disk.</p>
+        <p>Sitemaps served from another host than the pages they list are accepted when <code>robots.txt</code> names the index.</p>
+        <h3>Your own</h3>
+        <p>A storage is any object with <code>read(name)</code>, <code>write(name, path)</code> and <code>delete(name)</code>.</p>
+      </div>
+    </section>
+
+    <section id="indexnow" aria-labelledby="indexnow-title">
+      <h2 id="indexnow-title">IndexNow</h2>
+      <div class="prose">
+        <p><a href="https://www.indexnow.org">IndexNow</a> tells Bing, Yandex, Seznam and Naver that a URL changed. Google does not take part. Choose a key of 8 to 128 characters among a-z, A-Z, 0-9 and -:</p>
+<pre><code class="language-ruby"><span class="n">config</span><span class="p">.</span><span class="nf">index_now_key</span> <span class="o">=</span> <span class="s2">"c1f0e2b4a6d84f3e9b7a5c3d1e0f2a4b"</span></code></pre>
+        <p>Each build then publishes the key as <code>&lt;key&gt;.txt</code> next to the sitemaps, and sends the URLs of the rewritten files whose <code>lastmod</code> is later than the previous build. The first build sends nothing.</p>
+        <p>When the key cannot live at the root of the site, host it yourself and set <code>config.index_now_key_location</code> to its URL. An endpoint that cannot be reached is a warning, never a failed build.</p>
+      </div>
+    </section>
+
+    <section id="checking" aria-labelledby="checking-title">
+      <h2 id="checking-title">Checking</h2>
+      <div class="prose">
+<pre><code class="language-sh">bin/rails mapitaine:check</code></pre>
+        <p>It renders every sitemap without publishing or submitting anything, and fails on a URL outside <code>config.host</code>, a URL listed twice in a source, or a <code>lastmod</code> in the future. A build reports the same in <code>warnings</code>, for the files it rewrites.</p>
+        <p>Mapitaine never requests a page of the site. Whether a URL answers 200 or carries a <code>noindex</code> is what Search Console reports, from the visits crawlers make anyway.</p>
+      </div>
+    </section>
+
+    <section id="instrumentation" aria-labelledby="instrumentation-title">
+      <h2 id="instrumentation-title">Instrumentation</h2>
+      <div class="prose">
+        <p><code>build.mapitaine</code> wraps a build, with <code>full</code> and <code>result</code> in its payload. <code>shard.mapitaine</code> wraps each range it renders, with <code>source</code> and <code>shard</code>.</p>
+<pre><code class="language-ruby"><span class="no">ActiveSupport</span><span class="o">::</span><span class="no">Notifications</span><span class="p">.</span><span class="nf">subscribe</span><span class="p">(</span><span class="s2">"build.mapitaine"</span><span class="p">)</span> <span class="k">do</span> <span class="o">|</span><span class="n">event</span><span class="o">|</span>
+  <span class="n">built</span> <span class="o">=</span> <span class="n">event</span><span class="p">.</span><span class="nf">payload</span><span class="p">[</span><span class="ss">:result</span><span class="p">]</span>
+  <span class="no">Rails</span><span class="p">.</span><span class="nf">logger</span><span class="p">.</span><span class="nf">info</span> <span class="s2">"Sitemap: </span><span class="si">#{</span><span class="n">built</span><span class="p">.</span><span class="nf">written</span><span class="p">.</span><span class="nf">size</span><span class="si">}</span><span class="s2"> files written in </span><span class="si">#{</span><span class="n">event</span><span class="p">.</span><span class="nf">duration</span><span class="p">.</span><span class="nf">round</span><span class="si">}</span><span class="s2"> ms"</span>
+<span class="k">end</span></code></pre>
+      </div>
+    </section>
+
+  </main>
+
+  <footer class="family">
+    <p>Open-source gems by <a href="https://github.com/levups">Level UP Solutions</a></p>
+    <nav aria-label="Level UP Solutions gems">
+      <ul>
+        <li><a href="https://levups.github.io/super-slim/">SuperSlim</a></li>
+        <li><a href="https://levups.github.io/agentry/">Agentry</a></li>
+        <li><a href="https://levups.github.io/gamba/">Gamba</a></li>
+        <li><a href="https://levups.github.io/crumbly/">Crumbly</a></li>
+        <li><a href="https://levups.github.io/mapitaine/" aria-current="page">Mapitaine</a></li>
+      </ul>
+    </nav>
+    <p><a href="https://github.com/levups/mapitaine">Source on GitHub</a></p>
+  </footer>
+</div>
+</body>
+</html>

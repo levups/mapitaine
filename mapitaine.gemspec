@@ -15,6 +15,7 @@ Gem::Specification.new do |spec|
   spec.required_ruby_version = ">= 3.3"
   spec.metadata["source_code_uri"] = spec.homepage
   spec.metadata["changelog_uri"] = "#{spec.homepage}/blob/main/CHANGELOG.md"
+  spec.metadata["documentation_uri"] = "https://levups.github.io/mapitaine/"
   spec.metadata["bug_tracker_uri"] = "#{spec.homepage}/issues"
   spec.metadata["rubygems_mfa_required"] = "true"
   spec.files = Dir["lib/**/*.{rb,rake}", "LICENSE", "README.md", "CHANGELOG.md"]

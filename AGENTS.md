@@ -30,7 +30,8 @@ joins CI's `rails` matrix.
 - A build publishes the sitemap files, then the index, then deletes, then writes the manifest. Keep that order: it
   is what lets the next build repair one that died midway.
 - `priority`, `changefreq` and the ping endpoints are left out on purpose.
-- The README's table comes from `bench/build.rb`: run it again when the build path changes.
+- The README is the user guide and `docs/` the GitHub Pages site: change them with the code. The README's table and
+  `docs/benchmarks.html` come from the same `bench/build.rb` run.
 
 ## Rules for all our gems
 

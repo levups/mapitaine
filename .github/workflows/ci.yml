@@ -79,12 +79,30 @@ jobs:
       BUNDLE_GEMFILE: ${{ matrix.rails.gemfile != 'Gemfile' && matrix.rails.gemfile || '' }}
     steps: *test-steps
 
+  docs:
+    name: Highlighted docs
+    if: ${{ !github.event.pull_request.draft }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@de492cf36cbab201753d720ce4f4e336cd688c94 # v1.336.0
+        with:
+          ruby-version: "4.0"
+          bundler-cache: true
+      - name: Check the highlighted docs
+        run: bundle exec rake docs:highlight:check
+
   # The one check main's ruleset requires, so the Rubies, Rails and jobs above can change without touching it.
   # Every other job belongs in needs: bin/x-gems-ci-check in levups/oss checks it.
   passed:
     name: CI passed
     if: ${{ always() && !github.event.pull_request.draft }}
-    needs: [rubocop, test]
+    needs: [rubocop, test, docs]
     runs-on: ubuntu-latest
     timeout-minutes: 2
     steps:
