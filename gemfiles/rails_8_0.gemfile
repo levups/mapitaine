@@ -6,6 +6,7 @@ gemspec path: ".."
 
 gem "actionpack", "~> 8.0.0"
 gem "activerecord", "~> 8.0.0"
+gem "activestorage", "~> 8.0.0"
 gem "activesupport", "~> 8.0.0"
 gem "aws-sdk-s3", require: false
 gem "minitest"

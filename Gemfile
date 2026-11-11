@@ -7,6 +7,7 @@ gemspec
 group :development, :test do
   gem "actionpack"
   gem "activerecord"
+  gem "activestorage"
   gem "activesupport"
   gem "aws-sdk-s3", require: false
   gem "minitest"

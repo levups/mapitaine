@@ -156,8 +156,37 @@ next one. Changing the host, the languages or the version of Mapitaine rewrites 
 
 ## Storage
 
-Files go to `public/` by default. To send them to S3 or anything that speaks its API, add `aws-sdk-s3` to your
-Gemfile:
+Files go to `public/` by default.
+
+### Through Active Storage
+
+An app that already uses Active Storage can send the sitemaps through one of its services, with the credentials
+it already has. Give them a service of their own in `config/storage.yml`, in the bucket you want:
+
+```yaml
+sitemaps:
+  service: S3
+  bucket: example-sitemaps
+  region: eu-west-3
+  public: true
+  access_key_id: <%= Rails.application.credentials.dig(:aws, :access_key_id) %>
+  secret_access_key: <%= Rails.application.credentials.dig(:aws, :secret_access_key) %>
+```
+
+```ruby
+Mapitaine.configure do |config|
+  config.storage = Mapitaine::Storage::ActiveStorage.new(:sitemaps, prefix: "sitemaps")
+  config.sitemaps_url = "https://cdn.example.com/sitemaps"   # where those files are served from
+end
+```
+
+No blob is created: the files keep their names as keys, and nothing is written to the database. Any service
+works that serves a key at a stable URL: S3, Google Cloud Storage, Azure, a mirror of them. The Disk service
+does not, it scatters keys in subfolders: keep the default for files on disk.
+
+### Straight to S3
+
+Without Active Storage, add `aws-sdk-s3` to your Gemfile:
 
 ```ruby
 Mapitaine.configure do |config|

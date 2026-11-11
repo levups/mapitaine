@@ -2,6 +2,10 @@
 
 module Mapitaine
   module Storage
+    CONTENT_TYPE_BY_EXTENSION = {
+      ".gz" => "application/gzip", ".json" => "application/json", ".txt" => "text/plain", ".xml" => "application/xml"
+    }.freeze
+
     class Local
       def initialize(directory)
         @directory = directory.to_s

@@ -4,10 +4,6 @@ module Mapitaine
   module Storage
     # Needs the aws-sdk-s3 gem, which Mapitaine does not install.
     class S3
-      CONTENT_TYPE_BY_EXTENSION = {
-        ".gz" => "application/gzip", ".json" => "application/json", ".txt" => "text/plain", ".xml" => "application/xml"
-      }.freeze
-
       # put_options go to every put_object call: acl:, cache_control:, storage_class:…
       def initialize(bucket:, prefix: nil, client: nil, **put_options)
         require "aws-sdk-s3"

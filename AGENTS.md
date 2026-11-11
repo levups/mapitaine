@@ -20,8 +20,9 @@ joins CI's `rails` matrix.
 
 ## Traps
 
-- Active Record, Action Pack and aws-sdk-s3 stay out of the gemspec: a source duck-types its relation, the Railtie
-  brings the route helpers, and `Storage::S3` requires the SDK when it is built.
+- Active Record, Action Pack, Active Storage and aws-sdk-s3 stay out of the gemspec: a source duck-types its
+  relation, the Railtie brings the route helpers, `Storage::ActiveStorage` looks its service up at the first call and
+  `Storage::S3` requires the SDK when it is built.
 - Mapitaine never requests a page of the site, and never hooks into models: a build reads the database and the
   manifest of the last build, nothing else.
 - A file name is a promise: the same ids land in the same file at every build. Anything that moves them (the shard
