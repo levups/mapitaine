@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mapitaine Benchmarks</title>
+<meta name="description" content="How long Mapitaine takes to build the sitemaps of 30,000 pages in 24 languages, and to build them again when little or nothing changed.">
+<link rel="canonical" href="https://levups.github.io/mapitaine/benchmarks.html">
+<meta property="og:title" content="Mapitaine Benchmarks">
+<meta property="og:description" content="How long Mapitaine takes to build the sitemaps of 30,000 pages in 24 languages, and to build them again when little or nothing changed.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://levups.github.io/mapitaine/benchmarks.html">
+<meta property="og:site_name" content="Level UP Solutions">
+<meta name="twitter:card" content="summary">
+<meta name="theme-color" content="#6b3fa0">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@800&family=Inter+Tight:wght@400;600&family=Fira+Code&display=swap">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a class="skip-link" href="#content">Skip to content</a>
+<div class="page">
+  <nav class="site-nav" aria-label="Site">
+    <a class="brand" href="./">Mapitaine</a>
+    <a href="guide.html">Guide</a>
+    <a href="benchmarks.html" aria-current="page">Benchmarks</a>
+    <a href="https://github.com/levups/mapitaine">GitHub</a>
+  </nav>
+
+  <main id="content">
+    <header>
+      <h1 class="page-title">Benchmarks</h1>
+      <p class="lede">A site of 30,000 pages in 24 languages, built in full, then again.</p>
+    </header>
+
+    <section aria-labelledby="results-title">
+      <h2 id="results-title">Building 720,000 URLs</h2>
+      <div class="prose">
+        <p><code>bench/build.rb</code> creates 30,000 records, builds their sitemap in 24 languages, builds it again with nothing new, then once more after three records changed. Every URL carries the 25 <code>hreflang</code> links of its page.</p>
+        <table>
+          <caption>Ruby 3.3.6 without YJIT, Rails 8.1.4, SQLite in memory, Linux x86_64, one run</caption>
+          <thead><tr><th scope="col">Build</th><th scope="col">Time</th><th scope="col">Files written</th></tr></thead>
+          <tbody>
+            <tr><th scope="row">Everything, 720,000 URLs</th><td>31.9 s</td><td>55 (17 MiB gzipped)</td></tr>
+            <tr><th scope="row">Nothing new</th><td>0.01 s</td><td>0</td></tr>
+            <tr><th scope="row">3 records changed</th><td>1.0 s</td><td>2</td></tr>
+          </tbody>
+        </table>
+        <p>The largest file is 39.8 MiB before compression, under the 50 MiB the protocol allows. The URLs here are built from a string: with route helpers and a real database, the full build takes longer, and the other two change little.</p>
+      </div>
+    </section>
+
+    <section aria-labelledby="rerun-title">
+      <h2 id="rerun-title">Running it again</h2>
+      <div class="prose">
+        <p>From a checkout of the gem, once with YJIT off and once with it on:</p>
+<pre><code class="language-sh">bundle <span class="nb">exec </span>ruby bench/build.rb
+bundle <span class="nb">exec </span>ruby <span class="nt">--yjit</span> bench/build.rb</code></pre>
+        <p>The numbers depend on the machine and the database: compare builds on the same one rather than with this table.</p>
+      </div>
+    </section>
+  </main>
+
+  <footer class="family">
+    <p>Open-source gems by <a href="https://github.com/levups">Level UP Solutions</a></p>
+    <nav aria-label="Level UP Solutions gems">
+      <ul>
+        <li><a href="https://levups.github.io/super-slim/">SuperSlim</a></li>
+        <li><a href="https://levups.github.io/agentry/">Agentry</a></li>
+        <li><a href="https://levups.github.io/gamba/">Gamba</a></li>
+        <li><a href="https://levups.github.io/crumbly/">Crumbly</a></li>
+        <li><a href="https://levups.github.io/mapitaine/" aria-current="page">Mapitaine</a></li>
+      </ul>
+    </nav>
+    <p><a href="https://github.com/levups/mapitaine">Source on GitHub</a></p>
+  </footer>
+</div>
+</body>
+</html>

@@ -1,0 +1,13 @@
+# frozen_string_literal: true
+
+source "https://rubygems.org"
+
+gemspec path: ".."
+
+gem "actionpack", "~> 8.0.0"
+gem "activerecord", "~> 8.0.0"
+gem "activestorage", "~> 8.0.0"
+gem "activesupport", "~> 8.0.0"
+gem "minitest"
+gem "rake"
+gem "sqlite3"

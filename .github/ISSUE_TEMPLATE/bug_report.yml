@@ -1,0 +1,26 @@
+name: Bug report
+description: A wrong sitemap, a file that should be rewritten and is not, a crash
+labels: [bug]
+body:
+  - type: textarea
+    id: code
+    attributes:
+      label: Source class and configuration
+      description: The smallest source class, configuration and records that reproduce it.
+      render: ruby
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected and actual output
+      description: The XML or the files you expected, what `Mapitaine.build` wrote instead, or the error and its backtrace.
+    validations:
+      required: true
+  - type: input
+    id: versions
+    attributes:
+      label: Versions
+      placeholder: Mapitaine 0.1.0 (or commit), Rails 8.1, Ruby 4.0.1, PostgreSQL 18
+    validations:
+      required: true

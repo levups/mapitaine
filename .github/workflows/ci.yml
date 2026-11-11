@@ -1,0 +1,112 @@
+name: CI
+
+# The blocks shared by the Level UP Solutions gems are kept identical across the family.
+
+on:
+  push:
+    branches: [main]
+  # A draft runs nothing: marking it ready for review starts the CI.
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  rubocop:
+    name: RuboCop
+    if: ${{ !github.event.pull_request.draft }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@de492cf36cbab201753d720ce4f4e336cd688c94 # v1.336.0
+        with:
+          ruby-version: "4.0"
+          bundler-cache: true
+      - name: Lint with RuboCop
+        run: bundle exec rubocop --format github
+
+  test:
+    name: Ruby ${{ matrix.ruby }}${{ matrix.rails && format(' · Rails {0}', matrix.rails.version) || '' }}
+    if: ${{ !github.event.pull_request.draft }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        # Every Ruby the core team still maintains (https://endoflife.date/ruby); the -head ones are in head.
+        ruby: ["3.3", "3.4", "4.0"]
+        rails: [{version: "8.1", gemfile: Gemfile}, {version: "8.0", gemfile: gemfiles/rails_8_0.gemfile}]
+    env:
+      BUNDLE_GEMFILE: ${{ matrix.rails.gemfile != 'Gemfile' && matrix.rails.gemfile || '' }}
+    steps: &test-steps
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@de492cf36cbab201753d720ce4f4e336cd688c94 # v1.336.0
+        with:
+          ruby-version: ${{ matrix.ruby }}
+          bundler-cache: true
+      - name: Run the tests
+        run: bundle exec rake test
+
+  # Allowed to fail, and truffleruby-head takes twice as long as the others: CI passed doesn't wait for them.
+  head:
+    name: Ruby ${{ matrix.ruby }}${{ matrix.rails && format(' · Rails {0}', matrix.rails.version) || '' }}
+    if: ${{ !github.event.pull_request.draft }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    continue-on-error: true
+    strategy:
+      fail-fast: false
+      matrix:
+        # ruby-head, then this gem's extra ones.
+        ruby: [ruby-head]
+        rails: [{version: "8.1", gemfile: Gemfile}, {version: "8.0", gemfile: gemfiles/rails_8_0.gemfile}]
+    env:
+      BUNDLE_GEMFILE: ${{ matrix.rails.gemfile != 'Gemfile' && matrix.rails.gemfile || '' }}
+    steps: *test-steps
+
+  docs:
+    name: Highlighted docs
+    if: ${{ !github.event.pull_request.draft }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@de492cf36cbab201753d720ce4f4e336cd688c94 # v1.336.0
+        with:
+          ruby-version: "4.0"
+          bundler-cache: true
+      - name: Check the highlighted docs
+        run: bundle exec rake docs:highlight:check
+
+  # The one check main's ruleset requires, so the Rubies, Rails and jobs above can change without touching it.
+  # Every other job belongs in needs: bin/x-gems-ci-check in levups/oss checks it.
+  passed:
+    name: CI passed
+    if: ${{ always() && !github.event.pull_request.draft }}
+    needs: [rubocop, test, docs]
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Check every job succeeded
+        run: echo "$NEEDS" | jq --exit-status 'all(.[]; .result == "success")'
+        env:
+          NEEDS: ${{ toJSON(needs) }}
