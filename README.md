@@ -184,19 +184,6 @@ No blob is created: the files keep their names as keys, and nothing is written t
 works that serves a key at a stable URL: S3, Google Cloud Storage, Azure, a mirror of them. The Disk service
 does not, it scatters keys in subfolders: keep the default for files on disk.
 
-### Straight to S3
-
-Without Active Storage, add `aws-sdk-s3` to your Gemfile:
-
-```ruby
-Mapitaine.configure do |config|
-  config.storage = Mapitaine::Storage::S3.new(bucket: "example-sitemaps", prefix: "sitemaps")
-  config.sitemaps_url = "https://cdn.example.com/sitemaps"   # where those files are served from
-end
-```
-
-Sitemaps served from another host than the pages they list are accepted when `robots.txt` names the index.
-
 A storage is any object with `read(name)`, `write(name, path)` and `delete(name)`.
 
 ## IndexNow

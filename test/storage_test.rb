@@ -3,7 +3,6 @@
 require "test_helper"
 require "active_storage"
 require "active_storage/service/disk_service"
-require "aws-sdk-s3"
 
 class StorageTest < Minitest::Test
   def with_file(content)
@@ -56,31 +55,5 @@ class StorageTest < Minitest::Test
     with_file("") { |path| Mapitaine::Storage::ActiveStorage.new(service).write("sitemap-post-00000.xml.gz", path) }
 
     assert_equal [["sitemap-post-00000.xml.gz", {content_type: "application/gzip"}]], uploads
-  end
-
-  def test_s3_puts_under_the_prefix_with_a_content_type_and_the_options_given
-    client = Aws::S3::Client.new(stub_responses: true)
-    storage = Mapitaine::Storage::S3.new(bucket: "sitemaps", prefix: "example", client:, cache_control: "max-age=3600")
-    with_file("<xml/>") do |path|
-      storage.write("sitemap-post-00000.xml.gz", path)
-      storage.write("sitemap.xml", path)
-    end
-    storage.delete("sitemap.xml")
-    requests = client.api_requests.map { |request| [request[:operation_name], request[:params].slice(:bucket, :key, :content_type, :cache_control)] }
-
-    assert_equal [
-      [:put_object, {bucket: "sitemaps", key: "example/sitemap-post-00000.xml.gz", content_type: "application/gzip", cache_control: "max-age=3600"}],
-      [:put_object, {bucket: "sitemaps", key: "example/sitemap.xml", content_type: "application/xml", cache_control: "max-age=3600"}],
-      [:delete_object, {bucket: "sitemaps", key: "example/sitemap.xml"}]
-    ], requests
-  end
-
-  def test_s3_reads_a_file_and_nil_when_there_is_none
-    client = Aws::S3::Client.new(stub_responses: true)
-    storage = Mapitaine::Storage::S3.new(bucket: "sitemaps", client:)
-    client.stub_responses(:get_object, {body: "{}"}, "NoSuchKey")
-
-    assert_equal "{}", storage.read("sitemap-manifest.json")
-    assert_nil storage.read("sitemap-manifest.json")
   end
 end

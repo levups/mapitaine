@@ -9,7 +9,6 @@ group :development, :test do
   gem "activerecord"
   gem "activestorage"
   gem "activesupport"
-  gem "aws-sdk-s3", require: false
   gem "minitest"
   gem "rake"
   gem "rubocop", require: false
