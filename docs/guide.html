@@ -32,9 +32,9 @@
   <main id="content">
     <header>
       <h1 class="page-title">Guide</h1>
-      <p class="lede">How to describe your pages, build the sitemaps on a schedule, store them, and tell search engines what changed.</p>
+      <p class="lede">From a first sitemap in six steps to storage on S3, IndexNow, and what a build does under the hood.</p>
       <ul class="toc">
-        <li><a href="#installation">Installation</a></li>
+        <li><a href="#getting-started">Getting started</a></li>
         <li><a href="#sources">Sources</a></li>
         <li><a href="#languages">Languages</a></li>
         <li><a href="#lastmod">The date of a page</a></li>
@@ -44,29 +44,55 @@
         <li><a href="#indexnow">IndexNow</a></li>
         <li><a href="#checking">Checking</a></li>
         <li><a href="#instrumentation">Instrumentation</a></li>
+        <li><a href="#migrating">Coming from sitemap_generator</a></li>
       </ul>
     </header>
 
-    <section id="installation" aria-labelledby="installation-title">
-      <h2 id="installation-title">Installation</h2>
+    <section id="getting-started" aria-labelledby="getting-started-title">
+      <h2 id="getting-started-title">Getting started</h2>
       <div class="prose">
+        <ol class="steps">
+          <li>
+            <p>Add the gem. It needs Ruby 3.3 and Rails 8.0, or newer; its only runtime dependency is Active Support.</p>
 <pre><code class="language-ruby"><span class="c1"># Gemfile</span>
 <span class="n">gem</span> <span class="s2">"mapitaine"</span></code></pre>
-        <p>Mapitaine needs Ruby 3.3 and Rails 8.0, or newer. Its only runtime dependency is Active Support. Set the host of the site in an initializer:</p>
+          </li>
+          <li>
+            <p>Name the host of the site:</p>
 <pre><code class="language-ruby"><span class="c1"># config/initializers/mapitaine.rb</span>
 <span class="no">Mapitaine</span><span class="p">.</span><span class="nf">configure</span> <span class="k">do</span> <span class="o">|</span><span class="n">config</span><span class="o">|</span>
   <span class="n">config</span><span class="p">.</span><span class="nf">host</span> <span class="o">=</span> <span class="s2">"https://www.example.com"</span>
   <span class="n">config</span><span class="p">.</span><span class="nf">locales</span> <span class="o">=</span> <span class="sx">%i[en fr de]</span>   <span class="c1"># default: I18n.available_locales</span>
-  <span class="n">config</span><span class="p">.</span><span class="nf">x_default</span> <span class="o">=</span> <span class="ss">:en</span>          <span class="c1"># for hreflang="x-default"</span>
+  <span class="n">config</span><span class="p">.</span><span class="nf">x_default</span> <span class="o">=</span> <span class="ss">:en</span>          <span class="c1"># the language of hreflang="x-default"; none when left out</span>
 <span class="k">end</span></code></pre>
-        <p>Then tell crawlers where the index is, in <code>public/robots.txt</code>:</p>
+          </li>
+          <li>
+            <p>Write one class per kind of page in <code>app/sitemaps</code>, as in <a href="#sources">Sources</a> below:</p>
+<pre><code class="language-ruby"><span class="c1"># app/sitemaps/product_sitemap.rb</span>
+<span class="k">class</span> <span class="nc">ProductSitemap</span> <span class="o">&lt;</span> <span class="no">Mapitaine</span><span class="o">::</span><span class="no">Source</span>
+  <span class="n">scope</span> <span class="p">{</span> <span class="no">Product</span><span class="p">.</span><span class="nf">published</span> <span class="p">}</span>
+  <span class="n">url</span> <span class="p">{</span> <span class="o">|</span><span class="n">product</span><span class="p">,</span> <span class="n">locale</span><span class="o">|</span> <span class="n">product_url</span><span class="p">(</span><span class="n">product</span><span class="p">,</span> <span class="n">locale</span><span class="p">:)</span> <span class="p">}</span>
+<span class="k">end</span></code></pre>
+          </li>
+          <li>
+            <p>Look at what it would write, without writing it. It fails on a URL outside the site, a URL listed twice, a date in the future, and a few other <a href="#checking">mistakes</a>:</p>
+<pre><code class="language-sh">bin/rails mapitaine:check</code></pre>
+          </li>
+          <li>
+            <p>Build, then tell crawlers where the index is, in <code>public/robots.txt</code>:</p>
+<pre><code class="language-sh">bin/rails mapitaine:build</code></pre>
 <pre><code class="language-text">Sitemap: https://www.example.com/sitemap.xml</code></pre>
-        <p>When the sitemaps are served from elsewhere (<code>config.sitemaps_url</code>, see <a href="#storage">Storage</a>), that line names the index there: a sitemap on another host, or in a folder of the site, may list the pages of the site only when its <code>robots.txt</code> points to it.</p>
-        <h3>One host per language</h3>
-        <p>When some languages are served from a host of their own, name those hosts:</p>
-<pre><code class="language-ruby"><span class="n">config</span><span class="p">.</span><span class="nf">host</span> <span class="o">=</span> <span class="s2">"https://www.example.com"</span>
-<span class="n">config</span><span class="p">.</span><span class="nf">host_by_locale</span> <span class="o">=</span> <span class="p">{</span><span class="ss">fr: </span><span class="s2">"https://fr.example.com"</span><span class="p">,</span> <span class="ss">de: </span><span class="s2">"https://de.example.com"</span><span class="p">}</span></code></pre>
-        <p>The other languages stay on <code>config.host</code>, and so does the index. For the same reason as above, the <code>robots.txt</code> of every host names that one index.</p>
+          </li>
+          <li>
+            <p>Run it on a schedule, every hour or every night. With Solid Queue:</p>
+<pre><code class="language-yaml"><span class="c1"># config/recurring.yml</span>
+<span class="na">production</span><span class="pi">:</span>
+  <span class="na">sitemap</span><span class="pi">:</span>
+    <span class="na">command</span><span class="pi">:</span> <span class="s2">"</span><span class="s">Mapitaine.build"</span>
+    <span class="na">schedule</span><span class="pi">:</span> <span class="s">every hour</span></code></pre>
+          </li>
+        </ol>
+        <p>That is all most sites need. The sections below go further: records in some languages only, dates from several columns, files on S3, IndexNow.</p>
       </div>
     </section>
 
@@ -106,6 +132,11 @@
 <span class="k">end</span></code></pre>
         <p>Each <code>&lt;url&gt;</code> then lists every language of its page, itself included, as <code>hreflang</code> links. A page in one language gets no link. A page that does not exist in the <code>x_default</code> language gets no <code>x-default</code> link. A Rails locale such as <code>pt_BR</code> is written <code>hreflang="pt-BR"</code>, and two languages that share a URL list it once.</p>
         <p>A URL your block writes by hand is percent-encoded: spaces, accents and control characters cannot break a file.</p>
+        <h3>One host per language</h3>
+        <p>When some languages are served from a host of their own, name those hosts:</p>
+<pre><code class="language-ruby"><span class="n">config</span><span class="p">.</span><span class="nf">host</span> <span class="o">=</span> <span class="s2">"https://www.example.com"</span>
+<span class="n">config</span><span class="p">.</span><span class="nf">host_by_locale</span> <span class="o">=</span> <span class="p">{</span><span class="ss">fr: </span><span class="s2">"https://fr.example.com"</span><span class="p">,</span> <span class="ss">de: </span><span class="s2">"https://de.example.com"</span><span class="p">}</span></code></pre>
+        <p>The other languages stay on <code>config.host</code>, and so does the index. The <code>robots.txt</code> of every host names that one index: a sitemap may list the pages of a host only when that host's <code>robots.txt</code> points to it.</p>
       </div>
     </section>
 
@@ -216,6 +247,26 @@ bin/rails mapitaine:rebuild   <span class="c"># rewrite everything</span></code>
   <span class="n">built</span> <span class="o">=</span> <span class="n">event</span><span class="p">.</span><span class="nf">payload</span><span class="p">[</span><span class="ss">:result</span><span class="p">]</span>
   <span class="no">Rails</span><span class="p">.</span><span class="nf">logger</span><span class="p">.</span><span class="nf">info</span> <span class="s2">"Sitemap: </span><span class="si">#{</span><span class="n">built</span><span class="p">.</span><span class="nf">written</span><span class="p">.</span><span class="nf">size</span><span class="si">}</span><span class="s2"> files written in </span><span class="si">#{</span><span class="n">event</span><span class="p">.</span><span class="nf">duration</span><span class="p">.</span><span class="nf">round</span><span class="si">}</span><span class="s2"> ms"</span>
 <span class="k">end</span></code></pre>
+      </div>
+    </section>
+
+    <section id="migrating" aria-labelledby="migrating-title">
+      <h2 id="migrating-title">Coming from sitemap_generator</h2>
+      <div class="prose">
+        <table>
+          <thead><tr><th scope="col">sitemap_generator</th><th scope="col">Mapitaine</th></tr></thead>
+          <tbody>
+            <tr><td><code>config/sitemap.rb</code>, one <code>add</code> per URL</td><td>One <code>Mapitaine::Source</code> per kind of page, in <code>app/sitemaps</code></td></tr>
+            <tr><td><code>alternates:</code> written by hand for each URL</td><td><code>hreflang</code> links written from <code>config.locales</code>, or a source's <code>locales</code></td></tr>
+            <tr><td><code>default_host</code></td><td><code>config.host</code>, and <code>config.host_by_locale</code> for one host per language</td></tr>
+            <tr><td><code>rake sitemap:refresh</code></td><td><code>bin/rails mapitaine:build</code>, which rewrites only what changed</td></tr>
+            <tr><td><code>lastmod:</code></td><td><code>updated_at</code> by default, or <code>lastmod :column</code></td></tr>
+            <tr><td><code>priority:</code>, <code>changefreq:</code></td><td>Left out: Google ignores them</td></tr>
+            <tr><td>Pinging search engines</td><td>IndexNow, with <code>config.index_now_key</code></td></tr>
+            <tr><td><code>sitemaps_host</code>, adapters</td><td><code>config.sitemaps_url</code>, and any Active Storage service</td></tr>
+          </tbody>
+        </table>
+        <p>sitemap_generator names its index <code>sitemap.xml.gz</code>, Mapitaine <code>sitemap.xml</code>: change the <code>Sitemap:</code> line of <code>robots.txt</code>, and delete the old files once the first build has written the new ones.</p>
       </div>
     </section>
 

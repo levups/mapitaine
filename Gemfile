@@ -20,4 +20,5 @@ end
 group :development do
   gem "benchmark" # bench/build.rb: a bundled gem since Ruby 4.0, which Rails 8.1 no longer brings
   gem "rouge", "5.1.0" # pinned: docs:highlight:check compares its output with the committed pages
+  gem "sitemap_generator" # bench/build.rb compares a full build with it
 end
