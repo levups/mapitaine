@@ -58,6 +58,10 @@ module Mapitaine
       @checked_hreflangs = Set.new
       @reported = Set.new
       @x_default = Xml.hreflang(@configuration.x_default)
+      @hosts = @configuration.hosts
+      @host_prefixes = @hosts.map { |host| "#{host}/" }
+      @outside_message = "is outside #{@hosts.first}#{" and the hosts of its other languages" if @hosts.size > 1}"
+      @unreachable = nil
 
       @rendered = []
       # The first build has no "before": submitting a whole site at once is not what IndexNow is for. Nor is a
@@ -241,7 +245,7 @@ module Mapitaine
 
     def inspect_page(source, page, seen_urls)
       page.urls.each do |url|
-        warn(source, url, "is outside #{@configuration.host!}") unless on_host?(url)
+        warn(source, url, @outside_message) unless on_host?(url)
         warn(source, url, "is listed twice") unless seen_urls.add?(url)
         warn(source, url, "is longer than #{MAX_URL_CHARACTERS} characters") if url.length > MAX_URL_CHARACTERS
       end
@@ -278,7 +282,11 @@ module Mapitaine
     end
 
     def on_host?(url)
-      url.start_with?("#{@configuration.host!}/") || url == @configuration.host!
+      url.start_with?(*@host_prefixes) || @hosts.include?(url)
+    end
+
+    def host_of(url)
+      @hosts.find { |host| url == host || url.start_with?("#{host}/") }
     end
 
     # A day may still be the day of the last build somewhere: it changed if it is not older than the date at
@@ -301,32 +309,40 @@ module Mapitaine
     def submit(urls)
       return 0 if urls.empty?
 
-      replies = IndexNow.new(host: @configuration.host!, key: @configuration.index_now_key,
-        key_location: @configuration.index_now_key_location).submit(urls)
-      refused = replies.reject(&:accepted?)
-      refused.group_by(&:status).each do |status, replies_with_status|
-        count = replies_with_status.sum { |reply| reply.urls.size }
-        answer = status.is_a?(Integer) ? "answered #{status}" : "could not be reached (#{status})"
-        warn("indexnow", IndexNow::ENDPOINT, "#{answer} for #{count} URLs, sent again with the next build")
-      end
-      @manifest.unsubmitted.replace(refused.flat_map(&:urls).last(MAX_UNSUBMITTED_URLS))
+      replies = urls.group_by { |url| host_of(url) }.flat_map { |host, urls_of_host| submit_to(host, urls_of_host) }
+      @manifest.unsubmitted.replace(replies.reject(&:accepted?).flat_map(&:urls).last(MAX_UNSUBMITTED_URLS))
       upload(manifest_name, @manifest.to_json)
       replies.select(&:accepted?).sum { |reply| reply.urls.size }
     end
 
-    # IndexNow reads the key at the root of the site unless told where it is, and only on the site's host.
+    # IndexNow takes the URLs of one host per request. Once the endpoint cannot be reached, the hosts that
+    # follow do not each wait for a timeout of their own.
+    def submit_to(host, urls)
+      replies = if @unreachable
+        [IndexNow::Reply.new(urls:, status: @unreachable)]
+      else
+        key_path = @configuration.index_now_key_location
+        IndexNow.new(host:, key: @configuration.index_now_key, key_location: key_path && "#{host}#{key_path}").submit(urls)
+      end
+      @unreachable ||= replies.map(&:status).find { |status| !status.is_a?(Integer) }
+      replies.reject(&:accepted?).group_by(&:status).each do |status, refused|
+        count = refused.sum { |reply| reply.urls.size }
+        answer = status.is_a?(Integer) ? "answered #{status}" : "could not be reached (#{status})"
+        warn("indexnow", IndexNow::ENDPOINT, "#{answer} for #{count} URLs of #{host}, sent again with the next build")
+      end
+      replies
+    end
+
+    # IndexNow reads the key at the root of a host unless told where it is, and only on that host.
     def inspect_index_now_key
       key = @configuration.index_now_key
-      location = @configuration.index_now_key_location
-      return unless key
+      return if key.nil? || @configuration.index_now_key_location
 
-      if location
-        warn("indexnow", location, "is not on #{@configuration.host!}: IndexNow only reads a key there") unless on_host?(location)
-      elsif @configuration.sitemaps_url == @configuration.host!
+      if @configuration.sitemaps_url == @configuration.host!
         upload("#{key}.txt", key)
       else
         warn("indexnow", "#{@configuration.host!}/#{key}.txt", "must hold the key: sitemaps go to #{@configuration.sitemaps_url}, " \
-          "so put #{key}.txt in public/ and set index_now_key_location to this URL")
+          "so put #{key}.txt in public/ and set index_now_key_location to \"/#{key}.txt\"")
       end
     end
   end

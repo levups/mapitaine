@@ -94,7 +94,7 @@ module Mapitaine
 
     # What `url` blocks read when they call a route helper.
     def default_url_options
-      uri = URI.parse(configuration.host!)
+      uri = URI.parse(current_host)
       {host: uri.host, protocol: uri.scheme, port: (uri.port unless uri.port == uri.default_port)}.compact
     end
 
@@ -151,8 +151,8 @@ module Mapitaine
     def page_for(record)
       locales = definitions[:locales] ? Array(instance_exec(record, &definitions[:locales])) : configuration.locales
       url_by_locale = locales.filter_map do |locale|
-        location = instance_exec(record, locale, &definitions.fetch(:url))
-        [Xml.hreflang(locale), absolute(location)] if location
+        location = location_of(record, locale)
+        [Xml.hreflang(locale), location] if location
       end
       given_lastmod = lastmod_of(record)
       lastmod = Xml.timestamp(given_lastmod)
@@ -160,12 +160,25 @@ module Mapitaine
         rejected_lastmod: (given_lastmod if lastmod.nil? && given_lastmod.present?))
     end
 
+    # The url block runs with the host of its language: route helpers and paths get it without naming it.
+    def location_of(record, locale)
+      @language_host = configuration.host_for(locale)
+      location = instance_exec(record, locale, &definitions.fetch(:url))
+      absolute(location) if location
+    ensure
+      @language_host = nil
+    end
+
+    def current_host
+      @language_host || configuration.host!
+    end
+
     def absolute(location)
       location = location.to_s
       if location.start_with?("//")
-        location = "#{configuration.host!.split("//", 2).first}#{location}"
+        location = "#{current_host.split("//", 2).first}#{location}"
       elsif location.start_with?("/")
-        location = "#{configuration.host!}#{location}"
+        location = "#{current_host}#{location}"
       end
       encoded(location)
     end

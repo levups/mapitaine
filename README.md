@@ -74,10 +74,22 @@ When the sitemaps are served from elsewhere (`config.sitemaps_url`, see [Storage
 the index there: a sitemap on another host, or in a folder of the site, may list the pages of the site only
 when its `robots.txt` points to it.
 
+### One host per language
+
+When some languages are served from a host of their own, name those hosts:
+
+```ruby
+config.host = "https://www.example.com"
+config.host_by_locale = {fr: "https://fr.example.com", de: "https://de.example.com"}
+```
+
+The other languages stay on `config.host`, and so does the index. For the same reason as above, the `robots.txt`
+of every host names that one index.
+
 ## Sources
 
 A source is a class in `app/sitemaps`. Its blocks run in an object that has your route helpers, already set to
-`config.host`.
+`config.host`, or in the `url` block to the host of the language being written.
 
 ```ruby
 class ProductSitemap < Mapitaine::Source
@@ -223,11 +235,13 @@ config.index_now_key = "c1f0e2b4a6d84f3e9b7a5c3d1e0f2a4b"   # yours: 8 to 128 ch
 Each build then publishes the key as `<key>.txt` at the root of the site, and sends, from the files it rewrote,
 the URLs whose `lastmod` is later than the previous build, and those that appeared or went away whatever their
 `lastmod`. The first build sends nothing, nor does a new configuration beyond the pages whose `lastmod` moved,
-and only URLs on `config.host` are sent.
+and only URLs on the hosts of the site are sent.
 
 When the sitemaps are served from elsewhere (`config.sitemaps_url`), the key cannot follow them: IndexNow reads
-it on the site. Put `<key>.txt` in `public/` and set `config.index_now_key_location` to its URL; a build warns
-until you do.
+it on the site. Put `<key>.txt` in `public/` and set `config.index_now_key_location` to its path,
+`"/<key>.txt"`; a build warns until you do.
+
+With one host per language, every host must serve the key: IndexNow reads it on the host of the URLs it is given.
 
 A refusal or an endpoint that cannot be reached is a warning, never a failed build: the URLs it did not take are
 kept in the manifest and sent again with the next build.
@@ -240,7 +254,7 @@ bin/rails mapitaine:check
 
 It renders every sitemap without publishing or submitting anything, and fails on:
 
-- a URL outside `config.host`, listed twice in a source, or longer than 2,048 characters, and a page whose
+- a URL outside the hosts of the site, listed twice in a source, or longer than 2,048 characters, and a page whose
   languages all share one URL;
 - an `hreflang` that is not a language code (`en`, `pt-BR`, `zh-Hant`, `es-419`);
 - a `lastmod` in the future, or one that is not a W3C date, which is then left out;

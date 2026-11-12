@@ -26,6 +26,19 @@ class CheckTest < MapitaineTest
     ], Mapitaine.check.map(&:to_s)
   end
 
+  def test_a_url_on_the_host_of_its_language_is_sound_and_one_on_no_host_of_the_site_is_reported
+    Mapitaine.configuration.host_by_locale = {fr: "https://fr.example.com"}
+    create_post(1)
+    create_post(2)
+    elsewhere = Class.new(PostSitemap) { url { |post, locale| (post.id == 1) ? post_url(post, locale:) : "https://#{locale}.example.org/#{post.id}" } }
+    Mapitaine.configuration.sources = [elsewhere]
+
+    assert_equal [
+      "post: https://en.example.org/2 is outside https://example.com and the hosts of its other languages",
+      "post: https://fr.example.org/2 is outside https://example.com and the hosts of its other languages"
+    ], Mapitaine.check.map(&:to_s)
+  end
+
   def test_a_long_url_a_wrong_hreflang_and_a_lastmod_that_is_not_a_date_are_reported
     create_post(1, title: "a" * 2_100)
     wrong = Class.new(PostSitemap) do
