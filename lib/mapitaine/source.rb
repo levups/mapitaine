@@ -79,17 +79,14 @@ module Mapitaine
       end
     end
 
-    attr_reader :configuration
+    attr_reader :configuration, :slug
 
     def initialize(configuration)
       @configuration = configuration
-      return if self.class.slug.match?(SLUG_FORMAT)
+      @slug = self.class.slug
+      return if slug.match?(SLUG_FORMAT)
 
-      raise SourceError, "#{self.class.name}'s slug #{self.class.slug.inspect} must be lowercase letters, digits, - and _"
-    end
-
-    def slug
-      self.class.slug
+      raise SourceError, "#{self.class.name}'s slug #{slug.inspect} must be lowercase letters, digits, - and _"
     end
 
     # What `url` blocks read when they call a route helper.

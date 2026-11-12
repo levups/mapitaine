@@ -242,9 +242,9 @@ class IndexNowTest < MapitaineTest
       batches << JSON.parse(body)["urlList"].size
       Response.new(code: "202")
     end
-    index_now = Mapitaine::IndexNow.new(host: "https://example.com", key: "key", transport:)
+    index_now = Mapitaine::IndexNow.new(key: "key", transport:)
 
-    replies = index_now.submit(Array.new(10_001) { |number| "https://example.com/#{number}" })
+    replies = index_now.submit("https://example.com", Array.new(10_001) { |number| "https://example.com/#{number}" })
 
     assert_equal [10_000, 1], batches
     assert_equal [10_000, 1], replies.map { |reply| reply.urls.size }
@@ -259,11 +259,37 @@ class IndexNowTest < MapitaineTest
 
       Response.new(code: status)
     end
-    replies = Mapitaine::IndexNow.new(host: "https://example.com", key: "key", transport:)
-      .submit(Array.new(10_001) { |number| "https://example.com/#{number}" })
+    replies = Mapitaine::IndexNow.new(key: "key", transport:)
+      .submit("https://example.com", Array.new(10_001) { |number| "https://example.com/#{number}" })
 
     assert_equal [202, "Errno::ECONNRESET"], replies.map(&:status)
     assert_equal [true, false], replies.map(&:accepted?)
+  end
+
+  def test_an_endpoint_that_cannot_be_reached_is_tried_once_however_many_batches_wait
+    attempts = 0
+    transport = lambda do |*|
+      attempts += 1
+      raise Errno::ETIMEDOUT
+    end
+    replies = Mapitaine::IndexNow.new(key: "key", transport:)
+      .submit("https://example.com", Array.new(20_001) { |number| "https://example.com/#{number}" })
+
+    assert_equal 1, attempts
+    assert_equal ["Errno::ETIMEDOUT"] * 3, replies.map(&:status)
+    assert_equal [10_000, 10_000, 1], replies.map { |reply| reply.urls.size }
+  end
+
+  def test_a_blank_key_is_no_key
+    Mapitaine.configuration.index_now_key = ""
+    create_post(1)
+    build
+    Post.find(1).update!(title: "Edited", updated_at: Time.now)
+    built = build
+
+    refute storage.content_by_name.key?(".txt")
+    assert_empty @requests
+    assert_empty built.warnings
   end
 
   def test_check_submits_nothing
