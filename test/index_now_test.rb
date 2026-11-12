@@ -236,6 +236,17 @@ class IndexNowTest < MapitaineTest
       JSON.parse(storage.content_by_name["sitemap-manifest.json"])["unsubmitted"]
   end
 
+  def test_a_refusal_does_not_keep_the_next_host_from_being_asked
+    Mapitaine.configuration.host_by_locale = {fr: "https://fr.example.com"}
+    create_post(1)
+    build
+    Post.find(1).update!(title: "Edited", updated_at: Time.now)
+    self.response_code = "429"
+    build
+
+    assert_equal %w[example.com fr.example.com], @requests.map { |request| request.dig(1, "host") }
+  end
+
   def test_urls_go_in_batches_of_ten_thousand
     batches = []
     transport = lambda do |_uri, body, _headers|
@@ -280,15 +291,18 @@ class IndexNowTest < MapitaineTest
     assert_equal [10_000, 10_000, 1], replies.map { |reply| reply.urls.size }
   end
 
-  def test_a_blank_key_is_no_key
-    Mapitaine.configuration.index_now_key = ""
+  def test_a_blank_key_is_no_key_even_while_urls_wait
     create_post(1)
     build
     Post.find(1).update!(title: "Edited", updated_at: Time.now)
+    self.response_code = "429"
+    build
+    Mapitaine.configuration.index_now_key = ""
     built = build
 
     refute storage.content_by_name.key?(".txt")
-    assert_empty @requests
+    assert_equal 1, @requests.size
+    assert_equal 0, built.submitted
     assert_empty built.warnings
   end
 

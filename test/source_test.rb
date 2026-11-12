@@ -71,15 +71,15 @@ class SourceTest < MapitaineTest
 
   def test_the_url_block_runs_in_the_language_it_writes_when_i18n_has_it
     I18n.available_locales = %i[en fr]
-    create_post(1, languages: "fr,de,en")
+    create_post(1, languages: "en,de,fr")
     translated = Class.new(PostSitemap) do
       url { |post, locale| post_url("#{post.id}-#{{en: "hello", fr: "bonjour"}.fetch(I18n.locale)}", locale:) }
     end
     failing = Class.new(PostSitemap) { url { |_post, locale| (locale == :en) ? raise("no URL") : "/#{locale}" } }
 
     I18n.with_locale(:fr) do
-      assert_equal({"fr" => "https://example.com/fr/posts/1-bonjour", "de" => "https://example.com/de/posts/1-bonjour",
-        "en" => "https://example.com/en/posts/1-hello"}, translated.new(Mapitaine.configuration).each_page("0").first.url_by_locale)
+      assert_equal({"en" => "https://example.com/en/posts/1-hello", "de" => "https://example.com/de/posts/1-bonjour",
+        "fr" => "https://example.com/fr/posts/1-bonjour"}, translated.new(Mapitaine.configuration).each_page("0").first.url_by_locale)
       assert_equal :fr, I18n.locale
       assert_raises(RuntimeError) { failing.new(Mapitaine.configuration).each_page("0").first }
       assert_equal :fr, I18n.locale

@@ -13,7 +13,7 @@ class ConfigurationTest < MapitaineTest
   end
 
   def test_a_language_may_have_a_host_of_its_own
-    Mapitaine.configuration.host_by_locale = {:fr => "https://fr.example.com/", "pt-BR" => "https://br.example.com"}
+    Mapitaine.configuration.host_by_locale = {:fr => "https://fr.example.com/", "fr-CA" => "https://fr.example.com", "pt-BR" => "https://br.example.com"}
 
     assert_equal "https://fr.example.com", Mapitaine.configuration.host_for(:fr)
     assert_equal "https://br.example.com", Mapitaine.configuration.host_for(:pt_BR)

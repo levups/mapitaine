@@ -89,7 +89,7 @@ module Mapitaine
       raise SourceError, "#{self.class.name}'s slug #{slug.inspect} must be lowercase letters, digits, - and _"
     end
 
-    # What `url` blocks read when they call a route helper.
+    # What `url` blocks read when they call a route helper. Frozen: one hash serves every URL of a host.
     def default_url_options
       @url_options_by_host ||= {}
       @url_options_by_host[current_host] ||= begin
@@ -177,7 +177,7 @@ module Mapitaine
     def language_for(locale)
       @language_by_locale ||= {}
       @language_by_locale[locale] ||=
-        [Xml.hreflang(locale).freeze, configuration.host_for(locale), (locale if I18n.locale_available?(locale))].freeze
+        [Xml.hreflang(locale).freeze, configuration.host_for(locale), (locale if I18n.locale_available?(locale))]
     end
 
     def current_host

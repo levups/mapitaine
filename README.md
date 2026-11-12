@@ -98,7 +98,7 @@ class ProductSitemap < Mapitaine::Source
   # The records: an Active Record relation. Add the `includes` your other blocks need.
   scope { Product.published.includes(:photos) }
 
-  # The URL of a record in a language. A path gets the host; nil leaves that language out.
+  # The URL of a record in a language. A path gets the host of its language; nil leaves that language out.
   url { |product, locale| product_url(product, locale:) }
 
   # The languages a record exists in. Without it, every configured language.
@@ -193,7 +193,7 @@ After deploying a change to a `url` block, run `mapitaine:rebuild` rather than w
 
 A build notes the files it is about to add in `sitemap-manifest.json`, its memory of what each file held, then
 writes the sitemap files, then the index, then removes the files no range fills any more, then writes the
-manifest again. A build that fails midway is repaired by the next one. Changing the host, the languages, the
+manifest again. A build that fails midway is repaired by the next one. Changing a host, the languages, the
 size of a range or the version of Mapitaine rewrites everything it moves once.
 
 ## Storage
@@ -246,7 +246,8 @@ it on the site. Put `<key>.txt` in `public/` and set `config.index_now_key_locat
 With one host per language, every host must serve the key: IndexNow reads it on the host of the URLs it is given.
 
 A refusal or an endpoint that cannot be reached is a warning, never a failed build: the URLs it did not take are
-kept in the manifest and sent again with the next build.
+kept in the manifest and sent again with the next build. Once the endpoint cannot be reached, a build asks it
+nothing more.
 
 ## Checking
 
@@ -262,8 +263,8 @@ It renders every sitemap without publishing or submitting anything, and fails on
 - a `lastmod` in the future, or one that is not a W3C date, which is then left out;
 - an index with more than the 50,000 files it may hold.
 
-When many URLs of a source make the same mistake, one line names the first and counts the others. A build
-reports the same, for the files it rewrites, in `warnings`.
+When many URLs of a source are outside the hosts of the site, listed twice, too long or dated in the future, one
+line names the first and counts the others. A build reports the same, for the files it rewrites, in `warnings`.
 
 ## Instrumentation
 
