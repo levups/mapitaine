@@ -7,7 +7,7 @@ module Mapitaine
     MAX_URLS_PER_FILE = 50_000
     MAX_BYTES_PER_FILE = 52_428_800
 
-    Written = Data.define(:name, :path, :url_count, :lastmod)
+    Written = Data.define(:name, :path, :url_count, :lastmod, :digest)
 
     attr_reader :files
 
@@ -17,7 +17,6 @@ module Mapitaine
       @max_urls = max_urls
       @max_bytes = max_bytes
       @files = []
-      @digest = Digest::SHA256.new
     end
 
     # The entries of one page stay in the same file.
@@ -36,7 +35,7 @@ module Mapitaine
     end
 
     def content_digest
-      @digest.hexdigest
+      Digest::SHA256.hexdigest(@files.map(&:digest).join)
     end
 
     private
@@ -46,6 +45,7 @@ module Mapitaine
       @name = "#{@basename}#{suffix}.xml.gz"
       @path = File.join(@directory, @name)
       @gzip = Zlib::GzipWriter.open(@path)
+      @file_digest = Digest::SHA256.new
       @url_count = 0
       @bytes = Xml::URLSET_CLOSE.bytesize
       @lastmod = nil
@@ -53,16 +53,15 @@ module Mapitaine
     end
 
     def roll
-      @gzip.write(Xml::URLSET_CLOSE)
-      @digest << Xml::URLSET_CLOSE
+      write(Xml::URLSET_CLOSE)
       @gzip.close
       @gzip = nil
-      @files << Written.new(name: @name, path: @path, url_count: @url_count, lastmod: @lastmod)
+      @files << Written.new(name: @name, path: @path, url_count: @url_count, lastmod: @lastmod, digest: @file_digest.hexdigest)
     end
 
     def write(text)
       @gzip.write(text)
-      @digest << text
+      @file_digest << text
       @bytes += text.bytesize
     end
   end

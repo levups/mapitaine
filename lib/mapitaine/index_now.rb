@@ -19,7 +19,7 @@ module Mapitaine
     def submit(urls)
       urls.each_slice(MAX_URLS_PER_REQUEST).sum do |batch|
         body = {host: @host, key: @key, keyLocation: @key_location, urlList: batch}.compact
-        response = @transport.call(ENDPOINT, body.to_json, HEADERS)
+        response = @transport.call(ENDPOINT, JSON.generate(body), HEADERS)
         response.code.to_i.between?(200, 299) ? batch.size : 0
       end
     end

@@ -3,13 +3,13 @@
 require "test_helper"
 
 class BuildTest < MapitaineTest
-  def test_first_build_writes_a_file_per_shard_then_the_index_then_the_manifest
+  def test_first_build_announces_its_files_writes_one_per_shard_then_the_index_then_the_manifest
     create_post(1)
     create_post(12)
     built = build
 
-    assert_equal %w[sitemap-post-00000.xml.gz sitemap-post-00001.xml.gz sitemap-page.xml.gz sitemap.xml sitemap-manifest.json],
-      storage.writes
+    assert_equal %w[sitemap-manifest.json sitemap-post-00000.xml.gz sitemap-post-00001.xml.gz sitemap-page.xml.gz sitemap.xml
+      sitemap-manifest.json], storage.writes
     assert_equal %w[sitemap-post-00000.xml.gz sitemap-post-00001.xml.gz sitemap-page.xml.gz], built.written
     assert_equal 6, built.url_count
     assert_empty built.warnings
@@ -106,6 +106,135 @@ class BuildTest < MapitaineTest
     assert_equal %w[sitemap-post-00001.xml.gz], storage.deletions
     refute_includes storage.xml("sitemap.xml"), "sitemap-post-00001"
     assert_predicate built, :changed?
+  end
+
+  def test_a_record_replaced_by_an_older_one_rewrites_its_shard
+    create_post(1, updated_at: LONG_AGO + 60)
+    create_post(2)
+    build
+    Post.where(id: 2).delete_all
+    create_post(3)
+    built = build
+
+    assert_equal %w[sitemap-post-00000.xml.gz], built.written
+    assert_includes storage.xml("sitemap-post-00000.xml.gz"), "posts/3"
+  end
+
+  def test_ids_too_large_for_a_sum_are_fingerprinted
+    create_post(9_000_000_000_000_000_001)
+    create_post(9_000_000_000_000_000_002)
+    build
+    Post.where(id: 9_000_000_000_000_000_002).delete_all
+    create_post(9_000_000_000_000_000_003)
+
+    assert_equal %w[sitemap-post-900000000000000000.xml.gz], build.written
+  end
+
+  def test_a_new_shard_size_rewrites_the_source
+    create_post(5)
+    create_post(15)
+    build
+    Post.where(id: 15).delete_all
+    create_post(25)
+    Mapitaine.configuration.sources = [Class.new(PostSitemap) { shard_size 20 }, PageSitemap]
+    built = build
+
+    assert_equal %w[sitemap-post-00001.xml.gz], built.written
+    assert_includes built.kept, "sitemap-post-00000.xml.gz"
+    refute_includes storage.xml("sitemap-post-00001.xml.gz"), "posts/15"
+    assert_includes storage.xml("sitemap-post-00001.xml.gz"), "posts/25"
+  end
+
+  def test_a_file_that_changed_moves_forward_in_the_index_even_when_a_record_left_it
+    create_post(1)
+    create_post(2)
+    build
+    Post.where(id: 2).delete_all
+    built = build
+
+    assert_equal %w[sitemap-post-00000.xml.gz], built.written
+    stamp = storage.xml("sitemap.xml")[%r{sitemap-post-00000.xml.gz</loc><lastmod>([^<]+)}, 1]
+
+    assert_operator Time.iso8601(stamp), :>, LONG_AGO
+  end
+
+  def test_a_file_dated_by_an_older_manifest_is_compared_by_time
+    create_post(1, updated_at: Time.utc(2026, 1, 15, 5))
+    build
+    manifest = JSON.parse(storage.content_by_name["sitemap-manifest.json"])
+    manifest["sources"]["post"]["0"]["files"][0]["lastmod"] = "2026-01-15T10:00:00+09:00"
+    storage.content_by_name["sitemap-manifest.json"] = manifest.to_json
+    Post.where(id: 1).update_all(title: "Edited", updated_at: Time.utc(2026, 1, 15, 6))
+    build
+
+    assert_includes storage.xml("sitemap.xml"), "sitemap-post-00000.xml.gz</loc><lastmod>2026-01-15T06:00:00Z</lastmod>"
+  end
+
+  def test_a_shard_rendered_again_without_a_visible_change_is_not_uploaded
+    create_post(1)
+    fixed = Class.new(PostSitemap) { lastmod { Date.new(2026, 1, 1) } }
+    Mapitaine.configuration.sources = [fixed]
+    build
+    Post.where(id: 1).update_all(updated_at: LONG_AGO + 60)
+    built = build
+
+    assert_empty built.written
+    assert_equal %w[sitemap-post-00000.xml.gz], built.kept
+    assert_includes storage.xml("sitemap.xml"), "sitemap-post-00000.xml.gz</loc><lastmod>2026-01-01</lastmod>"
+  end
+
+  def test_a_full_build_uploads_everything_and_keeps_the_dates_of_what_did_not_change
+    create_post(1)
+    build
+    index = storage.xml("sitemap.xml")
+    storage.delete("sitemap-post-00000.xml.gz")
+    built = build(full: true)
+
+    assert_equal %w[sitemap-post-00000.xml.gz sitemap-page.xml.gz], built.written
+    assert_equal index, storage.xml("sitemap.xml")
+  end
+
+  def test_a_full_build_comes_every_week_by_itself
+    create_post(1)
+    build
+    manifest = JSON.parse(storage.content_by_name["sitemap-manifest.json"])
+    manifest["rebuilt_at"] = (Time.now - 8 * 86_400).utc.iso8601
+    storage.content_by_name["sitemap-manifest.json"] = manifest.to_json
+
+    built = build
+
+    assert_predicate built, :full
+    assert_equal %w[sitemap-post-00000.xml.gz sitemap-page.xml.gz], built.written
+    refute_predicate build, :full
+    Mapitaine.configuration.rebuild_every = nil
+    storage.content_by_name["sitemap-manifest.json"] = manifest.to_json
+
+    assert_empty build.written
+  end
+
+  def test_files_of_a_build_that_died_midway_are_removed_by_the_next
+    create_post(1)
+    build
+    create_post(12)
+    failing = Class.new(MemoryStorage) do
+      def write(name, source_path)
+        raise IOError, "disk full" if name == "sitemap.xml"
+
+        super
+      end
+    end.new
+    failing.content_by_name.merge!(storage.content_by_name)
+    Mapitaine.configuration.storage = failing
+
+    assert_raises(IOError) { Mapitaine.build }
+    assert failing.content_by_name.key?("sitemap-post-00001.xml.gz")
+    Post.where(id: 12).delete_all
+    @storage = MemoryStorage.new
+    storage.content_by_name.merge!(failing.content_by_name)
+    Mapitaine.configuration.storage = storage
+    built = build
+
+    assert_equal %w[sitemap-post-00001.xml.gz], built.deleted
   end
 
   def test_a_full_build_rewrites_everything
@@ -250,6 +379,10 @@ class BuildTest < MapitaineTest
     built = build
 
     assert_equal ["shard.mapitaine", {source: "post", shard: "0"}], events.first
+    assert_equal ["build.mapitaine", {full: true, result: built}], events.last
+    events.clear
+    built = build
+
     assert_equal ["build.mapitaine", {full: false, result: built}], events.last
   ensure
     ActiveSupport::Notifications.unsubscribe(subscriber)

@@ -2,7 +2,7 @@
 
 namespace :mapitaine do
   report = lambda do |result|
-    puts "#{result.url_count} URLs: #{result.written.size} files written, #{result.kept.size} kept, " \
+    puts "#{result.url_count} URLs#{" (full build)" if result.full}: #{result.written.size} files written, #{result.kept.size} kept, " \
          "#{result.deleted.size} deleted, #{result.submitted} URLs sent to IndexNow"
     result.warnings.each { |warning| warn "  #{warning}" }
   end
