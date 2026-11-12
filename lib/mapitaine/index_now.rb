@@ -15,12 +15,20 @@ module Mapitaine
       @transport = transport
     end
 
-    # Returns how many URLs the endpoint took.
+    # status: the HTTP status, or the class of the network error.
+    Reply = Data.define(:urls, :status) do
+      def accepted?
+        status.is_a?(Integer) && status.between?(200, 299)
+      end
+    end
+
+    # One reply per request of up to 10,000 URLs.
     def submit(urls)
-      urls.each_slice(MAX_URLS_PER_REQUEST).sum do |batch|
+      urls.each_slice(MAX_URLS_PER_REQUEST).map do |batch|
         body = {host: @host, key: @key, keyLocation: @key_location, urlList: batch}.compact
-        response = @transport.call(ENDPOINT, JSON.generate(body), HEADERS)
-        response.code.to_i.between?(200, 299) ? batch.size : 0
+        Reply.new(urls: batch, status: @transport.call(ENDPOINT, JSON.generate(body), HEADERS).code.to_i)
+      rescue *NETWORK_ERRORS => exception
+        Reply.new(urls: batch, status: exception.class.name)
       end
     end
   end

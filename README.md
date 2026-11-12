@@ -220,10 +220,17 @@ A storage is any object with `read(name)`, `write(name, path)` and `delete(name)
 config.index_now_key = "c1f0e2b4a6d84f3e9b7a5c3d1e0f2a4b"   # yours: 8 to 128 characters, a-z, A-Z, 0-9 and -
 ```
 
-Each build then publishes the key as `<key>.txt` next to the sitemaps, and sends the URLs of the rewritten files
-whose `lastmod` is later than the previous build. The first build sends nothing. When the key cannot live at
-the root of the site, host it yourself and set `config.index_now_key_location` to its URL. An endpoint that
-cannot be reached is a warning, never a failed build.
+Each build then publishes the key as `<key>.txt` at the root of the site, and sends, from the files it rewrote,
+the URLs whose `lastmod` is later than the previous build, and those that appeared or went away whatever their
+`lastmod`. The first build sends nothing, nor does a new configuration beyond the pages whose `lastmod` moved,
+and only URLs on `config.host` are sent.
+
+When the sitemaps are served from elsewhere (`config.sitemaps_url`), the key cannot follow them: IndexNow reads
+it on the site. Put `<key>.txt` in `public/` and set `config.index_now_key_location` to its URL; a build warns
+until you do.
+
+A refusal or an endpoint that cannot be reached is a warning, never a failed build: the URLs it did not take are
+kept in the manifest and sent again with the next build.
 
 ## Checking
 
