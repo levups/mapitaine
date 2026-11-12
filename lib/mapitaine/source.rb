@@ -94,8 +94,11 @@ module Mapitaine
 
     # What `url` blocks read when they call a route helper.
     def default_url_options
-      uri = URI.parse(current_host)
-      {host: uri.host, protocol: uri.scheme, port: (uri.port unless uri.port == uri.default_port)}.compact
+      @url_options_by_host ||= {}
+      @url_options_by_host[current_host] ||= begin
+        uri = URI.parse(current_host)
+        {host: uri.host, protocol: uri.scheme, port: (uri.port unless uri.port == uri.default_port)}.compact.freeze
+      end
     end
 
     # A nil fingerprint means the shard has to be rendered to know whether it changed.
@@ -162,14 +165,22 @@ module Mapitaine
     def url_by_locale_of(record, locales)
       app_locale = I18n.locale
       locales.filter_map do |locale|
-        @language_host = configuration.host_for(locale)
-        I18n.locale = I18n.locale_available?(locale) ? locale : app_locale
+        hreflang, @language_host, i18n_locale = language_for(locale)
+        I18n.locale = i18n_locale || app_locale
         location = instance_exec(record, locale, &definitions.fetch(:url))
-        [Xml.hreflang(locale), absolute(location)] if location
+        [hreflang, absolute(location)] if location
       end.to_h
     ensure
       @language_host = nil
       I18n.locale = app_locale
+    end
+
+    # [hreflang, host, I18n locale or nil when I18n does not have it], worked out once per language.
+    # The hreflang is frozen: a hash copies a key that is not, here once per URL.
+    def language_for(locale)
+      @language_by_locale ||= {}
+      @language_by_locale[locale] ||=
+        [Xml.hreflang(locale).freeze, configuration.host_for(locale), (locale if I18n.locale_available?(locale))].freeze
     end
 
     def current_host

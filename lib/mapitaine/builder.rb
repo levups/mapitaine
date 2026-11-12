@@ -64,7 +64,6 @@ module Mapitaine
       @checked_hreflangs = Set.new
       @reported = Set.new
       @warning_index_by_mistake = {}
-      @other_count_by_mistake = Hash.new(0)
       @x_default = Xml.hreflang(@configuration.x_default)
       @hosts = @configuration.hosts
       @host_prefixes = @hosts.map { |host| "#{host}/" }
@@ -90,7 +89,6 @@ module Mapitaine
       @manifest.unsubmitted.replace(urls.last(MAX_UNSUBMITTED_URLS))
       upload(manifest_name, @manifest.to_json)
       submitted = submit(urls)
-      count_others
 
       Result.new(full: @full, written: @written, kept: @kept, deleted:, url_count: @manifest.files.sum { |file| file["urls"] },
         submitted:, warnings: @warnings)
@@ -289,18 +287,12 @@ module Mapitaine
     # For a mistake any number of URLs of a source may share: the first is reported, the others are counted.
     def warn_counted(source, kind, url, message)
       mistake = [source.slug, kind]
-      if @warning_index_by_mistake.key?(mistake)
-        @other_count_by_mistake[mistake] += 1
+      index = @warning_index_by_mistake[mistake]
+      if index
+        @warnings[index] = @warnings[index].with(others: @warnings[index].others + 1)
       else
         @warning_index_by_mistake[mistake] = @warnings.size
         warn(source, url, message)
-      end
-    end
-
-    def count_others
-      @other_count_by_mistake.each do |mistake, count|
-        index = @warning_index_by_mistake.fetch(mistake)
-        @warnings[index] = @warnings[index].with(others: count)
       end
     end
 
