@@ -23,10 +23,6 @@ module Maptain
 
     # others: how many more times its source made the same mistake.
     Warning = Data.define(:source, :url, :message, :others) do
-      def initialize(others: 0, **)
-        super
-      end
-
       def to_s
         line = "#{source}: #{url} #{message}"
         others.zero? ? line : "#{line}, and #{others} more like it"
@@ -50,6 +46,7 @@ module Maptain
     private
 
     def build_in(directory, full:)
+      @configuration.validate!
       @directory = directory
       @previous = Manifest.read(@storage, manifest_name)
       @previous_file_by_name = @previous.files.to_h { |file| [file["name"], file] }
@@ -64,17 +61,16 @@ module Maptain
       @checked_hreflangs = Set.new
       @reported = Set.new
       @warning_index_by_mistake = {}
-      @other_count_by_mistake = Hash.new(0)
       @x_default = Xml.hreflang(@configuration.x_default)
       @hosts = @configuration.hosts
       @host_prefixes = @hosts.map { |host| "#{host}/" }
       @outside_message = "is outside #{@hosts.first}#{" and the hosts of its other languages" if @hosts.size > 1}"
-      @unreachable = nil
+      @index_now = IndexNow.new(key: @configuration.index_now_key, key_path: @configuration.index_now_key_location)
 
       @rendered = []
       # The first build has no "before": submitting a whole site at once is not what IndexNow is for. Nor is a
       # new configuration, which rewrites every file: then only the lastmods tell what changed.
-      @tracking = @submit && @configuration.index_now_key.present? && @previous.built_at.present?
+      @tracking = @submit && @configuration.index_now_key && @previous.built_at.present?
       @diffing = @tracking && @previous.digest == @configuration.digest
       @moved_sources = Set.new
 
@@ -84,13 +80,12 @@ module Maptain
       deleted = (@previous.file_names | @previous.pending) - @manifest.file_names
       @changed_urls.concat(urls_in(deleted.reject { |name| @moved_sources.include?(previous_source_of(name)) })) if @diffing
       deleted.each { |name| @storage.delete(name) }
-      inspect_index_now_key
+      publish_index_now_key
       urls = urls_to_submit
       # Written before submitting, with the URLs still to send: a build that dies while submitting loses none.
       @manifest.unsubmitted.replace(urls.last(MAX_UNSUBMITTED_URLS))
       upload(manifest_name, @manifest.to_json)
       submitted = submit(urls)
-      count_others
 
       Result.new(full: @full, written: @written, kept: @kept, deleted:, url_count: @manifest.files.sum { |file| file["urls"] },
         submitted:, warnings: @warnings)
@@ -289,23 +284,17 @@ module Maptain
     # For a mistake any number of URLs of a source may share: the first is reported, the others are counted.
     def warn_counted(source, kind, url, message)
       mistake = [source.slug, kind]
-      if @warning_index_by_mistake.key?(mistake)
-        @other_count_by_mistake[mistake] += 1
+      index = @warning_index_by_mistake[mistake]
+      if index
+        @warnings[index] = @warnings[index].with(others: @warnings[index].others + 1)
       else
         @warning_index_by_mistake[mistake] = @warnings.size
         warn(source, url, message)
       end
     end
 
-    def count_others
-      @other_count_by_mistake.each do |mistake, count|
-        index = @warning_index_by_mistake.fetch(mistake)
-        @warnings[index] = @warnings[index].with(others: count)
-      end
-    end
-
     def warn(source, url, message)
-      @warnings << Warning.new(source: source.is_a?(Source) ? source.slug : source, url:, message:)
+      @warnings << Warning.new(source: source.is_a?(Source) ? source.slug : source, url:, message:, others: 0)
     end
 
     def on_host?(url)
@@ -342,16 +331,8 @@ module Maptain
       replies.select(&:accepted?).sum { |reply| reply.urls.size }
     end
 
-    # IndexNow takes the URLs of one host per request. Once the endpoint cannot be reached, the hosts that
-    # follow do not each wait for a timeout of their own.
     def submit_to(host, urls)
-      replies = if @unreachable
-        [IndexNow::Reply.new(urls:, status: @unreachable)]
-      else
-        key_path = @configuration.index_now_key_location
-        IndexNow.new(host:, key: @configuration.index_now_key, key_location: key_path && "#{host}#{key_path}").submit(urls)
-      end
-      @unreachable ||= replies.map(&:status).find { |status| !status.is_a?(Integer) }
+      replies = @index_now.submit(host, urls)
       replies.reject(&:accepted?).group_by(&:status).each do |status, refused|
         count = refused.sum { |reply| reply.urls.size }
         answer = status.is_a?(Integer) ? "answered #{status}" : "could not be reached (#{status})"
@@ -361,7 +342,7 @@ module Maptain
     end
 
     # IndexNow reads the key at the root of a host unless told where it is, and only on that host.
-    def inspect_index_now_key
+    def publish_index_now_key
       key = @configuration.index_now_key
       return if key.nil? || @configuration.index_now_key_location
 

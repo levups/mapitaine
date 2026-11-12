@@ -6,8 +6,8 @@ module Maptain
     # a new url block, a file removed from the storage.
     DEFAULT_REBUILD_EVERY_SECONDS = 7 * 24 * 60 * 60
 
-    attr_accessor :filename, :index_now_key, :load_sources, :rebuild_every, :storage, :x_default
-    attr_reader :host, :host_by_locale, :index_now_key_location
+    attr_accessor :filename, :load_sources, :rebuild_every, :storage, :x_default
+    attr_reader :host, :host_by_locale, :index_now_key, :index_now_key_location
     attr_writer :locales, :sitemaps_url, :sources
 
     def initialize
@@ -41,13 +41,28 @@ module Maptain
       [host!, *host_by_locale.values].uniq
     end
 
+    # Checked when a build starts, not when host_by_locale is set: locales may be set after it.
+    def validate!
+      hreflangs = locales.map { |locale| Xml.hreflang(locale) }
+      unknown = host_by_locale.keys - hreflangs
+      return if unknown.empty?
+
+      raise ConfigurationError, "host_by_locale[#{unknown.first.inspect}] is not one of the locales: #{hreflangs.join(", ")}"
+    end
+
+    # A blank key, as an environment variable left empty gives, is no key.
+    def index_now_key=(key)
+      @index_now_key = key.presence
+    end
+
     # A path, not a URL: IndexNow only reads a key on the host of the URLs it is given, so each host serves it.
     def index_now_key_location=(path)
-      unless path.nil? || path.to_s.match?(%r{\A/[^/\s]\S*\z})
+      path = path.to_s.presence
+      unless path.nil? || path.match?(%r{\A/[^/\s]\S*\z})
         raise ConfigurationError, "index_now_key_location must be a path such as \"/key.txt\", got #{path.inspect}"
       end
 
-      @index_now_key_location = path&.to_s
+      @index_now_key_location = path
     end
 
     def locales

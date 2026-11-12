@@ -148,7 +148,7 @@ class ProductSitemap < Maptain::Source
   # The records: an Active Record relation. Add the `includes` your other blocks need.
   scope { Product.published.includes(:photos) }
 
-  # The URL of a record in a language. A path gets the host; nil leaves that language out.
+  # The URL of a record in a language. A path gets the host of its language; nil leaves that language out.
   url { |product, locale| product_url(product, locale:) }
 
   # The languages a record exists in. Without it, every configured language.
@@ -206,7 +206,8 @@ config.host_by_locale = {fr: "https://fr.example.com", de: "https://de.example.c
 ```
 
 The other languages stay on `config.host`, and so does the index. The `robots.txt` of every host names that one
-index: a sitemap may list the pages of a host only when that host's `robots.txt` points to it.
+index: a sitemap may list the pages of a host only when that host's `robots.txt` points to it. Each key is one
+of `config.locales`: a build refuses any other.
 
 ## The date of a page
 
@@ -271,7 +272,7 @@ After deploying a change to a `url` block, run `maptain:rebuild` rather than wai
 
 A build notes the files it is about to add in `sitemap-manifest.json`, its memory of what each file held, then
 writes the sitemap files, then the index, then removes the files no range fills any more, then writes the
-manifest again. A build that fails midway is repaired by the next one. Changing the host, the languages, the
+manifest again. A build that fails midway is repaired by the next one. Changing a host, the languages, the
 size of a range or the version of Maptain rewrites everything it moves once.
 
 ## Storage
@@ -330,7 +331,8 @@ it on the site. Put `<key>.txt` in `public/` and set `config.index_now_key_locat
 With one host per language, every host must serve the key: IndexNow reads it on the host of the URLs it is given.
 
 A refusal or an endpoint that cannot be reached is a warning, never a failed build: the URLs it did not take are
-kept in the manifest and sent again with the next build.
+kept in the manifest and sent again with the next build. Once the endpoint cannot be reached, a build asks it
+nothing more.
 
 ## Checking
 
@@ -346,8 +348,8 @@ It renders every sitemap without publishing or submitting anything, and fails on
 - a `lastmod` in the future, or one that is not a W3C date, which is then left out;
 - an index with more than the 50,000 files it may hold.
 
-When many URLs of a source make the same mistake, one line names the first and counts the others. A build
-reports the same, for the files it rewrites, in `warnings`.
+When many URLs of a source are outside the hosts of the site, listed twice, too long or dated in the future, one
+line names the first and counts the others. A build reports the same, for the files it rewrites, in `warnings`.
 
 Maptain never requests a page of the site. Whether a URL answers 200 or carries a `noindex` is what Search
 Console reports, from the visits crawlers make anyway.
@@ -359,8 +361,8 @@ range it renders, with `source` and `shard`.
 
 ```ruby
 ActiveSupport::Notifications.subscribe("build.maptain") do |event|
-  built = event.payload[:result]
-  Rails.logger.info "Sitemap: #{built.written.size} files written in #{event.duration.round} ms"
+  built = event.payload[:result] # nil when the build raised
+  Rails.logger.info "Sitemap: #{built.written.size} files written in #{event.duration.round} ms" if built
 end
 ```
 

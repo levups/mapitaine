@@ -13,9 +13,9 @@ class IndexNowTest < MaptainTest
     test = self
     @original_post = Net::HTTP.method(:post)
     replace_post do |uri, body, headers|
+      requests << [uri.to_s, JSON.parse(body), headers]
       raise test.network_error if test.network_error
 
-      requests << [uri.to_s, JSON.parse(body), headers]
       Response.new(code: test.response_code)
     end
   end
@@ -116,9 +116,9 @@ class IndexNowTest < MaptainTest
     create_post(1)
     build
     Post.find(1).update!(title: "Edited", updated_at: Time.now)
-    self.network_error = Net::HTTPBadResponse
+    self.network_error = Interrupt
 
-    assert_raises(Net::HTTPBadResponse) { build }
+    assert_raises(Interrupt) { build }
     self.network_error = nil
 
     assert_equal 2, build.submitted
@@ -221,19 +221,26 @@ class IndexNowTest < MaptainTest
     create_post(1)
     build
     Post.find(1).update!(title: "Edited", updated_at: Time.now)
-    attempts = 0
-    replace_post do |*|
-      attempts += 1
-      raise Errno::ETIMEDOUT
-    end
+    self.network_error = Errno::ETIMEDOUT
     built = build
 
-    assert_equal 1, attempts
+    assert_equal 1, @requests.size
     assert_equal %w[https://example.com https://fr.example.com].map { |host|
       "indexnow: https://api.indexnow.org/indexnow could not be reached (Errno::ETIMEDOUT) for 1 URLs of #{host}, sent again with the next build"
     }, built.warnings.map(&:to_s)
     assert_equal %w[https://example.com/en/posts/1 https://fr.example.com/fr/posts/1],
       JSON.parse(storage.content_by_name["sitemap-manifest.json"])["unsubmitted"]
+  end
+
+  def test_a_refusal_does_not_keep_the_next_host_from_being_asked
+    Maptain.configuration.host_by_locale = {fr: "https://fr.example.com"}
+    create_post(1)
+    build
+    Post.find(1).update!(title: "Edited", updated_at: Time.now)
+    self.response_code = "429"
+    build
+
+    assert_equal %w[example.com fr.example.com], @requests.map { |request| request.dig(1, "host") }
   end
 
   def test_urls_go_in_batches_of_ten_thousand
@@ -242,9 +249,9 @@ class IndexNowTest < MaptainTest
       batches << JSON.parse(body)["urlList"].size
       Response.new(code: "202")
     end
-    index_now = Maptain::IndexNow.new(host: "https://example.com", key: "key", transport:)
+    index_now = Maptain::IndexNow.new(key: "key", transport:)
 
-    replies = index_now.submit(Array.new(10_001) { |number| "https://example.com/#{number}" })
+    replies = index_now.submit("https://example.com", Array.new(10_001) { |number| "https://example.com/#{number}" })
 
     assert_equal [10_000, 1], batches
     assert_equal [10_000, 1], replies.map { |reply| reply.urls.size }
@@ -259,11 +266,49 @@ class IndexNowTest < MaptainTest
 
       Response.new(code: status)
     end
-    replies = Maptain::IndexNow.new(host: "https://example.com", key: "key", transport:)
-      .submit(Array.new(10_001) { |number| "https://example.com/#{number}" })
+    replies = Maptain::IndexNow.new(key: "key", transport:)
+      .submit("https://example.com", Array.new(10_001) { |number| "https://example.com/#{number}" })
 
     assert_equal [202, "Errno::ECONNRESET"], replies.map(&:status)
     assert_equal [true, false], replies.map(&:accepted?)
+  end
+
+  def test_whatever_the_transport_raises_is_a_reply_that_did_not_come
+    errors = [Net::HTTPBadResponse.new("wrong status line"), Zlib::DataError.new("incorrect header check"), Net::HTTPFatalError.new("503", nil)]
+    statuses = errors.map do |error|
+      Maptain::IndexNow.new(key: "key", transport: ->(*) { raise error }).submit("https://example.com", %w[https://example.com/1]).first.status
+    end
+
+    assert_equal %w[Net::HTTPBadResponse Zlib::DataError Net::HTTPFatalError], statuses
+  end
+
+  def test_an_endpoint_that_cannot_be_reached_is_tried_once_however_many_batches_wait
+    attempts = 0
+    transport = lambda do |*|
+      attempts += 1
+      raise Errno::ETIMEDOUT
+    end
+    replies = Maptain::IndexNow.new(key: "key", transport:)
+      .submit("https://example.com", Array.new(20_001) { |number| "https://example.com/#{number}" })
+
+    assert_equal 1, attempts
+    assert_equal ["Errno::ETIMEDOUT"] * 3, replies.map(&:status)
+    assert_equal [10_000, 10_000, 1], replies.map { |reply| reply.urls.size }
+  end
+
+  def test_a_blank_key_is_no_key_even_while_urls_wait
+    create_post(1)
+    build
+    Post.find(1).update!(title: "Edited", updated_at: Time.now)
+    self.response_code = "429"
+    build
+    Maptain.configuration.index_now_key = ""
+    built = build
+
+    refute storage.content_by_name.key?(".txt")
+    assert_equal 1, @requests.size
+    assert_equal 0, built.submitted
+    assert_empty built.warnings
   end
 
   def test_check_submits_nothing

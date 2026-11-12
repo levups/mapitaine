@@ -13,7 +13,7 @@ class ConfigurationTest < MaptainTest
   end
 
   def test_a_language_may_have_a_host_of_its_own
-    Maptain.configuration.host_by_locale = {:fr => "https://fr.example.com/", "pt-BR" => "https://br.example.com"}
+    Maptain.configuration.host_by_locale = {:fr => "https://fr.example.com/", "fr-CA" => "https://fr.example.com", "pt-BR" => "https://br.example.com"}
 
     assert_equal "https://fr.example.com", Maptain.configuration.host_for(:fr)
     assert_equal "https://br.example.com", Maptain.configuration.host_for(:pt_BR)
@@ -23,6 +23,17 @@ class ConfigurationTest < MaptainTest
     assert_raises(FrozenError) { Maptain.configuration.host_by_locale[:de] = "de.example.com" }
   end
 
+  def test_a_host_for_a_language_the_site_does_not_have_is_refused_when_a_build_starts
+    Maptain.configuration.host_by_locale = {"FR" => "https://fr.example.com", :pt_BR => "https://br.example.com"}
+
+    assert_equal 'host_by_locale["FR"] is not one of the locales: en, fr', assert_raises(Maptain::ConfigurationError) { build }.message
+    assert_raises(Maptain::ConfigurationError) { Maptain.check }
+    assert_empty storage.writes
+    Maptain.configuration.locales = %i[en FR pt_BR]
+
+    assert_empty build.warnings
+  end
+
   def test_the_key_location_is_a_path_every_host_serves
     Maptain.configuration.index_now_key_location = "/indexnow-key.txt"
 
@@ -30,6 +41,14 @@ class ConfigurationTest < MaptainTest
     ["https://example.com/indexnow-key.txt", "//cdn.example.com/indexnow-key.txt", "indexnow-key.txt", "/", "/key.txt\nhttps://example.org"].each do |location|
       assert_raises(Maptain::ConfigurationError, location) { Maptain.configuration.index_now_key_location = location }
     end
+  end
+
+  def test_a_blank_key_and_a_blank_key_location_are_none
+    Maptain.configuration.index_now_key = " "
+    Maptain.configuration.index_now_key_location = ""
+
+    assert_nil Maptain.configuration.index_now_key
+    assert_nil Maptain.configuration.index_now_key_location
   end
 
   def test_a_build_without_a_host_says_so
