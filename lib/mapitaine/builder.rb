@@ -83,7 +83,7 @@ module Mapitaine
       deleted = (@previous.file_names | @previous.pending) - @manifest.file_names
       @changed_urls.concat(urls_in(deleted.reject { |name| @moved_sources.include?(previous_source_of(name)) })) if @diffing
       deleted.each { |name| @storage.delete(name) }
-      inspect_index_now_key
+      publish_index_now_key
       urls = urls_to_submit
       # Written before submitting, with the URLs still to send: a build that dies while submitting loses none.
       @manifest.unsubmitted.replace(urls.last(MAX_UNSUBMITTED_URLS))
@@ -345,7 +345,7 @@ module Mapitaine
     end
 
     # IndexNow reads the key at the root of a host unless told where it is, and only on that host.
-    def inspect_index_now_key
+    def publish_index_now_key
       key = @configuration.index_now_key
       return if key.blank? || @configuration.index_now_key_location
 
