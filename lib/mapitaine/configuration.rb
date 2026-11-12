@@ -43,7 +43,7 @@ module Mapitaine
 
     # Whatever changes every file: a build under another digest starts over.
     def digest
-      Digest::SHA256.hexdigest([VERSION, host!, sitemaps_url, locales, x_default, filename].to_json)
+      Digest::SHA256.hexdigest(JSON.generate([VERSION, host!, sitemaps_url, locales, x_default, filename]))
     end
 
     private
