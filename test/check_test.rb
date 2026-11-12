@@ -21,6 +21,7 @@ class CheckTest < MapitaineTest
       "post: https://example.org/en is outside https://example.com",
       "post: https://example.org/fr is outside https://example.com",
       "post: https://example.org/en has a lastmod in the future (2999-01-01T00:00:00Z)",
+      "post: https://example.com/same is the URL of every language of its page: does the url block use the locale?",
       "post: https://example.com/same is listed twice"
     ], Mapitaine.check.map(&:to_s)
   end
@@ -42,10 +43,30 @@ class CheckTest < MapitaineTest
     ], Mapitaine.check.map(&:to_s)
   end
 
-  def test_an_empty_index_is_reported
-    Mapitaine.configuration.sources = [PostSitemap]
+  def test_mistakes_every_page_repeats_are_reported_once_and_impossible_dates_left_out
+    create_post(1)
+    create_post(2)
+    careless = Class.new(PostSitemap) do
+      url { |post| "/posts/#{post.id}" }
+      lastmod { "2026-13-01" }
+    end
+    Mapitaine.configuration.sources = [careless]
 
-    assert_equal ["index: https://example.com/sitemap.xml lists no file: no source has a page"], Mapitaine.check.map(&:to_s)
+    assert_equal [
+      "post: https://example.com/posts/1 is the URL of every language of its page: does the url block use the locale?",
+      %(post: https://example.com/posts/1 has a lastmod that is not a W3C date ("2026-13-01"), left out)
+    ], Mapitaine.check.map(&:to_s)
+  end
+
+  def test_a_date_is_in_the_future_only_once_it_has_started_nowhere
+    dated = ->(date) { Class.new(PageSitemap) { lastmod { date } } }
+    first_date_on_earth = Time.now.getlocal("+14:00").to_date
+    Mapitaine.configuration.sources = [dated.call(first_date_on_earth)]
+
+    assert_empty Mapitaine.check
+    Mapitaine.configuration.sources = [dated.call(first_date_on_earth + 1)]
+
+    assert_equal 1, Mapitaine.check.size
   end
 
   def test_one_wrong_hreflang_is_reported_once

@@ -9,7 +9,7 @@ module Mapitaine
     end
 
     # https://www.sitemaps.org/protocol.html
-    MAX_URL_LENGTH = 2_048
+    MAX_URL_CHARACTERS = 2_048
     MAX_FILES_PER_INDEX = 50_000
     # A language, then maybe a script and a region: en, pt-BR, zh-Hant-TW, es-419.
     HREFLANG = /\A[a-z]{2,3}(-[a-z]{4})?(-([a-z]{2}|\d{3}))?\z/i
@@ -44,6 +44,8 @@ module Mapitaine
       @warnings = []
       @changed_urls = []
       @checked_hreflangs = Set.new
+      @reported = Set.new
+      @x_default = Xml.hreflang(@configuration.x_default)
 
       @configuration.sources.each { |source_class| build_source(source_class.new(@configuration)) }
       publish_index
@@ -78,7 +80,7 @@ module Mapitaine
       ActiveSupport::Notifications.instrument("shard.mapitaine", source: source.slug, shard:) do
         source.each_page(shard) do |page|
           inspect_page(source, page, seen_urls)
-          writer.add(Xml.url_entries(page, x_default: @configuration.x_default), Xml.timestamp(page.lastmod))
+          writer.add(Xml.url_entries(page, x_default: @x_default), page.lastmod)
           changed_urls.concat(page.urls) if changed_since_last_build?(page)
         end
         writer.close
@@ -125,31 +127,34 @@ module Mapitaine
       page.urls.each do |url|
         warn(source, url, "is outside #{@configuration.host!}") unless url.start_with?("#{@configuration.host!}/") || url == @configuration.host!
         warn(source, url, "is listed twice") unless seen_urls.add?(url)
-        warn(source, url, "is longer than #{MAX_URL_LENGTH} characters") if url.length > MAX_URL_LENGTH
+        warn(source, url, "is longer than #{MAX_URL_CHARACTERS} characters") if url.length > MAX_URL_CHARACTERS
       end
       page.url_by_locale.each do |hreflang, url|
         warn(source, url, "has hreflang #{hreflang.inspect}, not a language code") if @checked_hreflangs.add?(hreflang) && !hreflang.match?(HREFLANG)
+      end
+      if page.url_by_locale.size > 1 && page.urls.one?
+        warn_once(source, :one_url, page.urls.first, "is the URL of every language of its page: does the url block use the locale?")
       end
       inspect_lastmod(source, page)
     end
 
     def inspect_lastmod(source, page)
-      return if page.lastmod.nil?
-
-      modified_at = page.modified_at
-      if modified_at.nil?
-        warn(source, page.urls.first, "has a lastmod that is not a W3C date (#{page.lastmod.inspect}), left out")
-      elsif modified_at > @manifest.built_at
-        warn(source, page.urls.first, "has a lastmod in the future (#{Xml.timestamp(page.lastmod)})")
+      if page.rejected_lastmod
+        warn_once(source, :rejected_lastmod, page.urls.first, "has a lastmod that is not a W3C date (#{page.rejected_lastmod.inspect}), left out")
+      elsif page.modified_at && page.modified_at > @manifest.built_at
+        warn(source, page.urls.first, "has a lastmod in the future (#{page.lastmod})")
       end
     end
 
     def inspect_index(url, file_count)
-      if file_count.zero?
-        warn("index", url, "lists no file: no source has a page")
-      elsif file_count > MAX_FILES_PER_INDEX
-        warn("index", url, "lists #{file_count} files, more than #{MAX_FILES_PER_INDEX}: raise shard_size")
-      end
+      return if file_count <= MAX_FILES_PER_INDEX
+
+      warn("index", url, "lists #{file_count} files, more than #{MAX_FILES_PER_INDEX}: raise shard_size")
+    end
+
+    # For a mistake every page of a source would repeat.
+    def warn_once(source, kind, url, message)
+      warn(source, url, message) if @reported.add?([source.slug, kind])
     end
 
     def warn(source, url, message)
@@ -158,8 +163,7 @@ module Mapitaine
 
     # The first build has no "before": submitting a whole site at once is not what IndexNow is for.
     def changed_since_last_build?(page)
-      modified_at = page.modified_at
-      @previous.built_at && modified_at && modified_at >= @previous.built_at
+      @previous.built_at && page.modified_at && page.modified_at >= @previous.built_at
     end
 
     def submit_changed_urls

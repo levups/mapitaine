@@ -18,8 +18,9 @@ module Mapitaine
     WHOLE = "all"
     # What RFC 3986 lets a URL hold as is. Anything else is percent-encoded, byte by byte.
     URL_CHARACTERS = "A-Za-z0-9\\-._~:/?#\\[\\]@!$&'()*+,;=%"
-    UNSAFE_CHARACTER = /[^#{URL_CHARACTERS}]/
-    UNSAFE_BYTE = Regexp.new("[^#{URL_CHARACTERS}]", Regexp::NOENCODING)
+    UNSAFE = "[^#{URL_CHARACTERS}]|%(?![0-9A-Fa-f]{2})"
+    UNSAFE_CHARACTER = Regexp.new(UNSAFE)
+    UNSAFE_BYTE = Regexp.new(UNSAFE, Regexp::NOENCODING)
 
     class << self
       def inherited(subclass)
@@ -150,12 +151,20 @@ module Mapitaine
         location = instance_exec(record, locale, &definitions.fetch(:url))
         [Xml.hreflang(locale), absolute(location)] if location
       end
-      Page.new(url_by_locale: url_by_locale.to_h, lastmod: lastmod_of(record), images: images_of(record))
+      given_lastmod = lastmod_of(record)
+      lastmod = Xml.timestamp(given_lastmod)
+      Page.new(url_by_locale: url_by_locale.to_h, lastmod:, modified_at: lastmod && Xml.time(lastmod), images: images_of(record),
+        rejected_lastmod: (given_lastmod if lastmod.nil? && given_lastmod.present?))
     end
 
     def absolute(location)
       location = location.to_s
-      encoded(location.start_with?("/") ? "#{configuration.host!}#{location}" : location)
+      if location.start_with?("//")
+        location = "#{configuration.host!.split("//", 2).first}#{location}"
+      elsif location.start_with?("/")
+        location = "#{configuration.host!}#{location}"
+      end
+      encoded(location)
     end
 
     # Route helpers encode their URLs already; a URL written by hand may hold spaces or accents.

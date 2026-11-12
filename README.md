@@ -214,10 +214,11 @@ bin/rails mapitaine:check
 
 It renders every sitemap without publishing or submitting anything, and fails on:
 
-- a URL outside `config.host`, listed twice in a source, or longer than 2,048 characters;
+- a URL outside `config.host`, listed twice in a source, or longer than 2,048 characters, and a page whose
+  languages all share one URL;
 - an `hreflang` that is not a language code (`en`, `pt-BR`, `zh-Hant`, `es-419`);
 - a `lastmod` in the future, or one that is not a W3C date, which is then left out;
-- an index with no file, or with more than the 50,000 files an index may hold.
+- an index with more than the 50,000 files it may hold.
 
 A build reports the same, for the files it rewrites, in `warnings`.
 

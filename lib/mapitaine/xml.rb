@@ -12,7 +12,7 @@ module Mapitaine
     # Google reads no more than 1,000 images per URL.
     MAX_IMAGES_PER_URL = 1_000
     # https://www.w3.org/TR/NOTE-datetime: a year, a month, a day, or a time with its zone.
-    W3C_DATE = /\A\d{4}(-\d{2}(-\d{2})?)?\z/
+    W3C_DATE = /\A(\d{4})(?:-(\d{2})(?:-(\d{2}))?)?\z/
     W3C_TIME = /\A(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2})(?:\.\d+)?)?(Z|[+-]\d{2}:\d{2})\z/
 
     module_function
@@ -20,7 +20,7 @@ module Mapitaine
     # One <url> per language. Each lists every language of the page, itself included: search engines drop
     # hreflang links that are not returned by the page they point to.
     def url_entries(page, x_default:)
-      shared = "#{lastmod_tag(page.lastmod)}#{alternates(page, hreflang(x_default))}#{images(page.images)}</url>\n"
+      shared = "#{lastmod_tag(page.lastmod)}#{alternates(page, x_default)}#{images(page.images)}</url>\n"
       page.urls.map { |url| "<url><loc>#{escape(url)}</loc>#{shared}" }
     end
 
@@ -40,14 +40,25 @@ module Mapitaine
     end
 
     def w3c_timestamp(text)
-      return text if text.match?(W3C_DATE)
+      if (date = W3C_DATE.match(text))
+        year, month, day = date.captures
+        text if Date.valid_date?(year.to_i, (month || 1).to_i, (day || 1).to_i)
+      elsif (time = W3C_TIME.match(text))
+        year, month, day, hour, minute, second, zone = time.captures
+        return unless Date.valid_date?(year.to_i, month.to_i, day.to_i)
 
-      year, month, day, hour, minute, second, zone = W3C_TIME.match(text)&.captures
-      return unless year
-
-      Time.new(year.to_i, month.to_i, day.to_i, hour.to_i, minute.to_i, second.to_i, (zone == "Z") ? "UTC" : zone).getutc.iso8601
+        Time.new(year.to_i, month.to_i, day.to_i, hour.to_i, minute.to_i, second.to_i, (zone == "Z") ? "UTC" : zone).getutc.iso8601
+      end
     rescue ArgumentError
       nil
+    end
+
+    # A date alone is the day as it starts first, at UTC+14: no time zone has it in the future after that.
+    def time(stamp)
+      return Time.iso8601(stamp) if stamp.include?("T")
+
+      year, month, day = stamp.split("-").map(&:to_i)
+      Time.new(year, month || 1, day || 1, 0, 0, 0, "+14:00")
     end
 
     # Rails locales spell regions with an underscore (pt_BR), hreflang with a hyphen (pt-BR).
@@ -59,8 +70,7 @@ module Mapitaine
       text.to_s.encode(xml: :text).gsub('"', "&quot;")
     end
 
-    def lastmod_tag(value)
-      stamp = timestamp(value)
+    def lastmod_tag(stamp)
       stamp ? "<lastmod>#{escape(stamp)}</lastmod>" : ""
     end
 

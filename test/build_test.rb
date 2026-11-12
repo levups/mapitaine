@@ -175,11 +175,16 @@ class BuildTest < MapitaineTest
 
   def test_a_url_written_by_hand_is_percent_encoded
     create_post(1)
-    by_hand = Class.new(PostSitemap) { url { |_post, locale| "/#{locale}/Café\u0001 d" + "\xE9j\xE0?q=100%25" } }
+    by_hand = Class.new(PostSitemap) do
+      url { |_post, locale| "/#{locale}/Café\u0001 d" + "\xE9j\xE0?q=100%25&off=100%" }
+      images { ["//cdn.example.com/a b.jpg"] }
+    end
     Mapitaine.configuration.sources = [by_hand]
     build
+    xml = storage.xml("sitemap-post-00000.xml.gz")
 
-    assert_includes storage.xml("sitemap-post-00000.xml.gz"), "<loc>https://example.com/en/Caf%C3%A9%01%20d%E9j%E0?q=100%25</loc>"
+    assert_includes xml, "<loc>https://example.com/en/Caf%C3%A9%01%20d%E9j%E0?q=100%25&amp;off=100%25</loc>"
+    assert_includes xml, "<image:loc>https://cdn.example.com/a%20b.jpg</image:loc>"
   end
 
   def test_rails_locales_become_hreflang_codes_and_x_default_is_found_whatever_its_type
@@ -209,13 +214,15 @@ class BuildTest < MapitaineTest
   def test_lastmods_are_written_in_utc_and_the_index_takes_the_latest
     create_post(1)
     create_post(2)
+    create_post(3)
     tokyo = Time.new(2026, 1, 15, 10, 0, 0, "+09:00")
-    stamps = {1 => "2026-01-15T10:00+09:00", 2 => "2026-01-15T05:00:00Z"}
+    stamps = {1 => "2026-01-15T10:00+09:00", 2 => "2026-01-15T05:00:00Z", 3 => "2026-02-30T05:00:00Z"}
     zoned = Class.new(PostSitemap) { lastmod { |post| stamps.fetch(post.id) } }
     Mapitaine.configuration.sources = [zoned, Class.new(PageSitemap) { lastmod { tokyo } }]
     build
 
     assert_includes storage.xml("sitemap-post-00000.xml.gz"), "<lastmod>2026-01-15T01:00:00Z</lastmod>"
+    assert_includes storage.xml("sitemap-post-00000.xml.gz"), "<url><loc>https://example.com/en/posts/3</loc><xhtml:link"
     assert_includes storage.xml("sitemap.xml"), "sitemap-post-00000.xml.gz</loc><lastmod>2026-01-15T05:00:00Z</lastmod>"
     assert_includes storage.xml("sitemap-page.xml.gz"), "<lastmod>2026-01-15T01:00:00Z</lastmod>"
     assert_equal 9 * 3600, tokyo.utc_offset

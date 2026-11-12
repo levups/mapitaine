@@ -187,10 +187,10 @@ bin/rails mapitaine:rebuild   <span class="c"># rewrite everything</span></code>
 <pre><code class="language-sh">bin/rails mapitaine:check</code></pre>
         <p>It renders every sitemap without publishing or submitting anything, and fails on:</p>
         <ul>
-          <li>a URL outside <code>config.host</code>, listed twice in a source, or longer than 2,048 characters;</li>
+          <li>a URL outside <code>config.host</code>, listed twice in a source, or longer than 2,048 characters, and a page whose languages all share one URL;</li>
           <li>an <code>hreflang</code> that is not a language code (<code>en</code>, <code>pt-BR</code>, <code>zh-Hant</code>, <code>es-419</code>);</li>
           <li>a <code>lastmod</code> in the future, or one that is not a W3C date, which is then left out;</li>
-          <li>an index with no file, or with more than the 50,000 files an index may hold.</li>
+          <li>an index with more than the 50,000 files it may hold.</li>
         </ul>
         <p>A build reports the same in <code>warnings</code>, for the files it rewrites.</p>
         <p>Mapitaine never requests a page of the site. Whether a URL answers 200 or carries a <code>noindex</code> is what Search Console reports, from the visits crawlers make anyway.</p>
