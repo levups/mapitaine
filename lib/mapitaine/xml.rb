@@ -15,6 +15,9 @@ module Mapitaine
     W3C_DATE = /\A(\d{4})(?:-(\d{2})(?:-(\d{2}))?)?\z/
     W3C_TIME = /\A(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2})(?:\.\d+)?)?(Z|[+-]\d{2}:\d{2})\z/
 
+    LOCATION = %r{<loc>([^<]*)</loc>}
+    UNESCAPED_BY_ENTITY = {"&amp;" => "&", "&lt;" => "<", "&gt;" => ">", "&quot;" => '"', "&apos;" => "'"}.freeze
+
     module_function
 
     # One <url> per language. Each lists every language of the page, itself included: search engines drop
@@ -64,6 +67,11 @@ module Mapitaine
     # Rails locales spell regions with an underscore (pt_BR), hreflang with a hyphen (pt-BR).
     def hreflang(locale)
       locale.to_s.tr("_", "-")
+    end
+
+    # The <loc> of each <url> of a sitemap file.
+    def locations(xml)
+      xml.scan(LOCATION).map { |(location)| location.gsub(/&(?:amp|lt|gt|quot|apos);/, UNESCAPED_BY_ENTITY) }
     end
 
     def escape(text)
