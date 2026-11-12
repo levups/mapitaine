@@ -16,6 +16,11 @@ module Mapitaine
     SLUG_FORMAT = /\A[a-z0-9][a-z0-9_-]*\z/
     # A source that is not an Active Record relation is one shard, rendered at each build.
     WHOLE = "all"
+    # What RFC 3986 lets a URL hold as is. Anything else is percent-encoded, byte by byte.
+    URL_CHARACTERS = "A-Za-z0-9\\-._~:/?#\\[\\]@!$&'()*+,;=%"
+    UNSAFE = "[^#{URL_CHARACTERS}]|%(?![0-9A-Fa-f]{2})"
+    UNSAFE_CHARACTER = Regexp.new(UNSAFE)
+    UNSAFE_BYTE = Regexp.new(UNSAFE, Regexp::NOENCODING)
 
     class << self
       def inherited(subclass)
@@ -144,13 +149,29 @@ module Mapitaine
       locales = definitions[:locales] ? Array(instance_exec(record, &definitions[:locales])) : configuration.locales
       url_by_locale = locales.filter_map do |locale|
         location = instance_exec(record, locale, &definitions.fetch(:url))
-        [locale, absolute(location)] if location
+        [Xml.hreflang(locale), absolute(location)] if location
       end
-      Page.new(url_by_locale: url_by_locale.to_h, lastmod: lastmod_of(record), images: images_of(record))
+      given_lastmod = lastmod_of(record)
+      lastmod = Xml.timestamp(given_lastmod)
+      Page.new(url_by_locale: url_by_locale.to_h, lastmod:, modified_at: lastmod && Xml.time(lastmod), images: images_of(record),
+        rejected_lastmod: (given_lastmod if lastmod.nil? && given_lastmod.present?))
     end
 
     def absolute(location)
-      location.start_with?("/") ? "#{configuration.host!}#{location}" : location
+      location = location.to_s
+      if location.start_with?("//")
+        location = "#{configuration.host!.split("//", 2).first}#{location}"
+      elsif location.start_with?("/")
+        location = "#{configuration.host!}#{location}"
+      end
+      encoded(location)
+    end
+
+    # Route helpers encode their URLs already; a URL written by hand may hold spaces or accents.
+    def encoded(url)
+      return url if url.ascii_only? && !url.match?(UNSAFE_CHARACTER)
+
+      url.b.gsub(UNSAFE_BYTE) { |byte| format("%%%02X", byte.ord) }.force_encoding(Encoding::UTF_8)
     end
 
     def lastmod_of(record)

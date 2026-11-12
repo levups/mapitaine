@@ -61,6 +61,7 @@
 <span class="k">end</span></code></pre>
         <p>Then tell crawlers where the index is, in <code>public/robots.txt</code>:</p>
 <pre><code class="language-text">Sitemap: https://www.example.com/sitemap.xml</code></pre>
+        <p>When the sitemaps are served from elsewhere (<code>config.sitemaps_url</code>, see <a href="#storage">Storage</a>), that line names the index there: a sitemap on another host, or in a folder of the site, may list the pages of the site only when its <code>robots.txt</code> points to it.</p>
       </div>
     </section>
 
@@ -98,7 +99,8 @@
   <span class="n">url</span> <span class="p">{</span> <span class="o">|</span><span class="n">product</span><span class="p">,</span> <span class="n">locale</span><span class="o">|</span> <span class="n">product_url</span><span class="p">(</span><span class="n">product</span><span class="p">,</span> <span class="n">locale</span><span class="p">:)</span> <span class="p">}</span>
   <span class="n">locales</span> <span class="p">{</span> <span class="o">|</span><span class="n">product</span><span class="o">|</span> <span class="n">product</span><span class="p">.</span><span class="nf">translated_locales</span> <span class="p">}</span>
 <span class="k">end</span></code></pre>
-        <p>Each <code>&lt;url&gt;</code> then lists every language of its page, itself included, as <code>hreflang</code> links. A page in one language gets no link. A page that does not exist in the <code>x_default</code> language gets no <code>x-default</code> link.</p>
+        <p>Each <code>&lt;url&gt;</code> then lists every language of its page, itself included, as <code>hreflang</code> links. A page in one language gets no link. A page that does not exist in the <code>x_default</code> language gets no <code>x-default</code> link. A Rails locale such as <code>pt_BR</code> is written <code>hreflang="pt-BR"</code>, and two languages that share a URL list it once.</p>
+        <p>A URL your block writes by hand is percent-encoded: spaces, accents and control characters cannot break a file.</p>
       </div>
     </section>
 
@@ -163,7 +165,7 @@ bin/rails mapitaine:rebuild   <span class="c"># rewrite everything</span></code>
   <span class="n">config</span><span class="p">.</span><span class="nf">sitemaps_url</span> <span class="o">=</span> <span class="s2">"https://cdn.example.com/sitemaps"</span>   <span class="c1"># where those files are served from</span>
 <span class="k">end</span></code></pre>
         <p>No blob is created: the files keep their names as keys, and nothing is written to the database. Any service works that serves a key at a stable URL: S3, Google Cloud Storage, Azure, a mirror of them. The Disk service does not, it scatters keys in subfolders: keep the default for files on disk.</p>
-        <p>Sitemaps served from another host than the pages they list are accepted when <code>robots.txt</code> names the index.</p>
+        <p>Sitemaps served from another host than the pages they list are accepted when the site's <code>robots.txt</code> names the index there.</p>
         <h3>Your own</h3>
         <p>A storage is any object with <code>read(name)</code>, <code>write(name, path)</code> and <code>delete(name)</code>.</p>
       </div>
@@ -183,7 +185,14 @@ bin/rails mapitaine:rebuild   <span class="c"># rewrite everything</span></code>
       <h2 id="checking-title">Checking</h2>
       <div class="prose">
 <pre><code class="language-sh">bin/rails mapitaine:check</code></pre>
-        <p>It renders every sitemap without publishing or submitting anything, and fails on a URL outside <code>config.host</code>, a URL listed twice in a source, or a <code>lastmod</code> in the future. A build reports the same in <code>warnings</code>, for the files it rewrites.</p>
+        <p>It renders every sitemap without publishing or submitting anything, and fails on:</p>
+        <ul>
+          <li>a URL outside <code>config.host</code>, listed twice in a source, or longer than 2,048 characters, and a page whose languages all share one URL;</li>
+          <li>an <code>hreflang</code> that is not a language code (<code>en</code>, <code>pt-BR</code>, <code>zh-Hant</code>, <code>es-419</code>);</li>
+          <li>a <code>lastmod</code> in the future, or one that is not a W3C date, which is then left out;</li>
+          <li>an index with more than the 50,000 files it may hold.</li>
+        </ul>
+        <p>A build reports the same in <code>warnings</code>, for the files it rewrites.</p>
         <p>Mapitaine never requests a page of the site. Whether a URL answers 200 or carries a <code>noindex</code> is what Search Console reports, from the visits crawlers make anyway.</p>
       </div>
     </section>

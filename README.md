@@ -69,6 +69,10 @@ Then tell crawlers where the index is, in `public/robots.txt`:
 Sitemap: https://www.example.com/sitemap.xml
 ```
 
+When the sitemaps are served from elsewhere (`config.sitemaps_url`, see [Storage](#storage)), that line names
+the index there: a sitemap on another host, or in a folder of the site, may list the pages of the site only
+when its `robots.txt` points to it.
+
 ## Sources
 
 A source is a class in `app/sitemaps`. Its blocks run in an object that has your route helpers, already set to
@@ -94,7 +98,10 @@ end
 ```
 
 A page in one language gets no `hreflang` link. A page that does not exist in the `x_default` language gets
-no `x-default` link.
+no `x-default` link. A Rails locale such as `pt_BR` is written `hreflang="pt-BR"`, and two languages that share
+a URL list it once.
+
+A URL your block writes by hand is percent-encoded: spaces, accents and control characters cannot break a file.
 
 ### When the date depends on more than one column
 
@@ -205,9 +212,15 @@ cannot be reached is a warning, never a failed build.
 bin/rails mapitaine:check
 ```
 
-It renders every sitemap without publishing or submitting anything, and fails on a URL outside `config.host`,
-a URL listed twice in a source, or a `lastmod` in the future. A build reports the same, for the files it
-rewrites, in `warnings`.
+It renders every sitemap without publishing or submitting anything, and fails on:
+
+- a URL outside `config.host`, listed twice in a source, or longer than 2,048 characters, and a page whose
+  languages all share one URL;
+- an `hreflang` that is not a language code (`en`, `pt-BR`, `zh-Hant`, `es-419`);
+- a `lastmod` in the future, or one that is not a W3C date, which is then left out;
+- an index with more than the 50,000 files it may hold.
+
+A build reports the same, for the files it rewrites, in `warnings`.
 
 ## Instrumentation
 

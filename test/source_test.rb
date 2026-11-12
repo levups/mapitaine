@@ -44,7 +44,7 @@ class SourceTest < MapitaineTest
     english_only = Class.new(PostSitemap) { url { |post, locale| post_url(post, locale:) if locale == :en } }
     pages = english_only.new(Mapitaine.configuration).each_page("0").to_a
 
-    assert_equal [{en: "https://example.com/en/posts/1"}], pages.map(&:url_by_locale)
+    assert_equal [{"en" => "https://example.com/en/posts/1"}], pages.map(&:url_by_locale)
   end
 
   def test_route_helpers_use_the_configured_host_port_and_scheme
