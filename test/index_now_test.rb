@@ -97,6 +97,51 @@ class IndexNowTest < MapitaineTest
       https://example.com/fr/posts/2 https://example.com/en/posts/12 https://example.com/fr/posts/12], @requests.last.dig(1, "urlList")
   end
 
+  def test_a_new_configuration_or_new_ranges_send_only_what_changed
+    create_post(5)
+    create_post(15)
+    build
+    Mapitaine.configuration.locales = %i[en fr de]
+
+    assert_equal 0, build.submitted
+    Mapitaine.configuration.sources = [Class.new(PostSitemap) { shard_size 20 }, PageSitemap]
+    Post.find(5).update!(title: "Edited", updated_at: Time.now)
+
+    build
+
+    assert_equal %w[https://example.com/en/posts/5 https://example.com/fr/posts/5], @requests.last.dig(1, "urlList")
+  end
+
+  def test_a_build_that_dies_while_submitting_leaves_its_urls_for_the_next
+    create_post(1)
+    build
+    Post.find(1).update!(title: "Edited", updated_at: Time.now)
+    self.network_error = Net::HTTPBadResponse
+
+    assert_raises(Net::HTTPBadResponse) { build }
+    self.network_error = nil
+
+    assert_equal 2, build.submitted
+  end
+
+  def test_a_year_alone_is_not_a_change
+    create_post(1)
+    create_post(2)
+    yearly = Class.new(PostSitemap) { lastmod { "2026" } }
+    Mapitaine.configuration.sources = [yearly]
+    build
+    Post.where(id: 2).delete_all
+    build
+
+    assert_equal %w[https://example.com/en/posts/2 https://example.com/fr/posts/2], @requests.last.dig(1, "urlList")
+  end
+
+  def test_check_reports_a_key_the_site_does_not_serve
+    Mapitaine.configuration.sitemaps_url = "https://cdn.example.com/sitemaps"
+
+    assert_equal 1, Mapitaine.check.size
+  end
+
   def test_a_date_of_the_day_of_the_last_build_is_a_change
     create_post(1)
     dated = Class.new(PostSitemap) { lastmod { |post| post.reviewed_at&.to_date || Date.new(2026, 1, 1) } }
@@ -156,6 +201,21 @@ class IndexNowTest < MapitaineTest
     assert_equal [10_000, 1], batches
     assert_equal [10_000, 1], replies.map { |reply| reply.urls.size }
     assert replies.all?(&:accepted?)
+  end
+
+  def test_each_batch_gets_its_own_reply
+    statuses = ["202", Errno::ECONNRESET]
+    transport = lambda do |_uri, _body, _headers|
+      status = statuses.shift
+      raise status if status.is_a?(Class)
+
+      Response.new(code: status)
+    end
+    replies = Mapitaine::IndexNow.new(host: "https://example.com", key: "key", transport:)
+      .submit(Array.new(10_001) { |number| "https://example.com/#{number}" })
+
+    assert_equal [202, "Errno::ECONNRESET"], replies.map(&:status)
+    assert_equal [true, false], replies.map(&:accepted?)
   end
 
   def test_check_submits_nothing

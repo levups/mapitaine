@@ -13,13 +13,13 @@ module Mapitaine
     MAX_URL_CHARACTERS = 2_048
     MAX_FILES_PER_INDEX = 50_000
     LAST_TIME_ZONE_OFFSET_SECONDS = 12 * 60 * 60
+    DAY_LENGTH = "2026-01-01".length
     # One request's worth: what a refusing endpoint leaves in the manifest stays small.
     MAX_UNSUBMITTED_URLS = IndexNow::MAX_URLS_PER_REQUEST
     # A language, then maybe a script and a region: en, pt-BR, zh-Hant-TW, es-419.
     HREFLANG = /\A[a-z]{2,3}(-[a-z]{4})?(-([a-z]{2}|\d{3}))?\z/i
 
-    # urls: every URL of the shard, kept only when IndexNow needs to know which ones appeared or went away.
-    Rendered = Data.define(:source_slug, :shard, :fingerprint, :files, :changed_urls, :urls)
+    Rendered = Data.define(:source_slug, :shard, :fingerprint, :files, :changed_urls)
 
     Warning = Data.define(:source, :url, :message) do
       def to_s
@@ -60,17 +60,24 @@ module Mapitaine
       @x_default = Xml.hreflang(@configuration.x_default)
 
       @rendered = []
-      # The first build has no "before": submitting a whole site at once is not what IndexNow is for.
+      # The first build has no "before": submitting a whole site at once is not what IndexNow is for. Nor is a
+      # new configuration, which rewrites every file: then only the lastmods tell what changed.
       @tracking = @submit && @configuration.index_now_key.present? && @previous.built_at.present?
+      @diffing = @tracking && @previous.digest == @configuration.digest
+      @moved_sources = Set.new
 
       @configuration.sources.each { |source_class| build_source(source_class.new(@configuration)) }
       publish_rendered
       publish_index
       deleted = (@previous.file_names | @previous.pending) - @manifest.file_names
-      @changed_urls.concat(urls_in(deleted)) if @tracking
+      @changed_urls.concat(urls_in(deleted.reject { |name| @moved_sources.include?(previous_source_of(name)) })) if @diffing
       deleted.each { |name| @storage.delete(name) }
-      submitted = submit_changed_urls
+      inspect_index_now_key
+      urls = urls_to_submit
+      # Written before submitting, with the URLs still to send: a build that dies while submitting loses none.
+      @manifest.unsubmitted.replace(urls.last(MAX_UNSUBMITTED_URLS))
       upload(manifest_name, @manifest.to_json)
+      submitted = submit(urls)
 
       Result.new(full: @full, written: @written, kept: @kept, deleted:, url_count: @manifest.files.sum { |file| file["urls"] },
         submitted:, warnings: @warnings)
@@ -96,7 +103,7 @@ module Mapitaine
     def render(source, shard, fingerprint, seen_urls)
       writer = ShardWriter.new(directory: @directory, basename: source.basename(shard))
       changed_urls = []
-      urls = [] if @tracking
+      urls = [] if @diffing
       ActiveSupport::Notifications.instrument("shard.mapitaine", source: source.slug, shard:) do
         source.each_page(shard) do |page|
           inspect_page(source, page, seen_urls)
@@ -107,18 +114,36 @@ module Mapitaine
         writer.close
       end
 
+      if writer.files.all? { |file| same_as_before?(file) }
+        changed_urls.clear
+      elsif urls
+        changed_urls.concat(appeared_or_gone(source.slug, shard, fingerprint, urls))
+      end
       fingerprint ||= writer.content_digest
       # Recorded now, published once every shard is rendered: the index keeps the order of the sources.
       @manifest.record(source.slug, shard, fingerprint:, files: [])
-      @rendered << Rendered.new(source_slug: source.slug, shard:, fingerprint:, files: writer.files, changed_urls:, urls:)
+      @rendered << Rendered.new(source_slug: source.slug, shard:, fingerprint:, files: writer.files, changed_urls:)
+    end
+
+    # Read while the previous files are still in the storage: a page that appeared or went away is a change too,
+    # whatever its lastmod says. Not when the ranges moved, which only carries pages from one file to another.
+    def appeared_or_gone(source_slug, shard, fingerprint, urls)
+      stored = @previous.shard(source_slug, shard)
+      if stored && fingerprint && stored["fingerprint"].to_s.split("/").first != fingerprint.split("/").first
+        @moved_sources << source_slug
+        return []
+      end
+
+      previous_urls = urls_in((stored&.fetch("files") || []).map { |file| file["name"] }).to_set
+      urls = urls.to_set
+      (urls - previous_urls).to_a + (previous_urls - urls).to_a
     end
 
     def publish_rendered
       changed_names = @rendered.flat_map(&:files).reject { |file| same_as_before?(file) }.to_set(&:name)
       announce_new_files(changed_names)
       @rendered.each do |rendered|
-        changed = rendered.files.any? { |file| changed_names.include?(file.name) }
-        note_changed_urls(rendered) if changed && @tracking
+        @changed_urls.concat(rendered.changed_urls)
         entries = rendered.files.map do |file|
           changed = changed_names.include?(file.name)
           publish(file, changed)
@@ -128,13 +153,11 @@ module Mapitaine
       end
     end
 
-    # Read before the new files replace the old: a page that appeared or went away is a change too, whatever its
-    # lastmod says.
-    def note_changed_urls(rendered)
-      previous_names = @previous.shard(rendered.source_slug, rendered.shard)&.fetch("files")&.map { |file| file["name"] } || []
-      previous_urls = urls_in(previous_names).to_set
-      urls = rendered.urls.to_set
-      @changed_urls.concat(rendered.changed_urls, (urls - previous_urls).to_a, (previous_urls - urls).to_a)
+    def previous_source_of(file_name)
+      @previous_source_by_file_name ||= @previous.shards_by_source.each_with_object({}) do |(source_slug, shards), source_by_name|
+        shards.each_value { |stored| stored["files"].each { |file| source_by_name[file["name"]] = source_slug } }
+      end
+      @previous_source_by_file_name[file_name]
     end
 
     def urls_in(names)
@@ -258,27 +281,28 @@ module Mapitaine
       url.start_with?("#{@configuration.host!}/") || url == @configuration.host!
     end
 
-    # A date alone may still be the day of the last build somewhere: it changed if it is not older than the date
-    # at UTC-12, the last time zone to leave a day.
+    # A day may still be the day of the last build somewhere: it changed if it is not older than the date at
+    # UTC-12, the last time zone to leave a day. A month or a year alone says too little to tell.
     def changed_since_last_build?(page)
       return false unless page.lastmod
       return page.modified_at >= @previous.built_at if page.lastmod.include?("T")
 
-      last_date = (@previous.built_at - LAST_TIME_ZONE_OFFSET_SECONDS).utc.to_date.iso8601
-      page.lastmod >= last_date[0, page.lastmod.length]
+      page.lastmod.length == DAY_LENGTH && page.lastmod >= (@previous.built_at - LAST_TIME_ZONE_OFFSET_SECONDS).utc.to_date.iso8601
     end
 
-    # Returns how many URLs the endpoint took. The ones it did not take, refused or unreachable, are kept in the
-    # manifest and sent again with the next build: the sitemaps are published, so a refusal never fails the build.
-    def submit_changed_urls
-      key = @configuration.index_now_key
-      return 0 unless @submit && key
+    def urls_to_submit
+      return [] unless @submit && @configuration.index_now_key
 
-      publish_index_now_key(key)
-      urls = (@previous.unsubmitted + @changed_urls).uniq.select { |url| on_host?(url) }
+      (@previous.unsubmitted + @changed_urls).uniq.select { |url| on_host?(url) }
+    end
+
+    # Returns how many URLs the endpoint took. The others, refused or unreachable, stay in the manifest for the
+    # next build: the sitemaps are published, so a refusal never fails the build.
+    def submit(urls)
       return 0 if urls.empty?
 
-      replies = IndexNow.new(host: @configuration.host!, key:, key_location: @configuration.index_now_key_location).submit(urls)
+      replies = IndexNow.new(host: @configuration.host!, key: @configuration.index_now_key,
+        key_location: @configuration.index_now_key_location).submit(urls)
       refused = replies.reject(&:accepted?)
       refused.group_by(&:status).each do |status, replies_with_status|
         count = replies_with_status.sum { |reply| reply.urls.size }
@@ -286,12 +310,16 @@ module Mapitaine
         warn("indexnow", IndexNow::ENDPOINT, "#{answer} for #{count} URLs, sent again with the next build")
       end
       @manifest.unsubmitted.replace(refused.flat_map(&:urls).last(MAX_UNSUBMITTED_URLS))
+      upload(manifest_name, @manifest.to_json)
       replies.select(&:accepted?).sum { |reply| reply.urls.size }
     end
 
     # IndexNow reads the key at the root of the site unless told where it is, and only on the site's host.
-    def publish_index_now_key(key)
+    def inspect_index_now_key
+      key = @configuration.index_now_key
       location = @configuration.index_now_key_location
+      return unless key
+
       if location
         warn("indexnow", location, "is not on #{@configuration.host!}: IndexNow only reads a key there") unless on_host?(location)
       elsif @configuration.sitemaps_url == @configuration.host!

@@ -222,7 +222,8 @@ config.index_now_key = "c1f0e2b4a6d84f3e9b7a5c3d1e0f2a4b"   # yours: 8 to 128 ch
 
 Each build then publishes the key as `<key>.txt` at the root of the site, and sends, from the files it rewrote,
 the URLs whose `lastmod` is later than the previous build, and those that appeared or went away whatever their
-`lastmod`. The first build sends nothing, and only URLs on `config.host` are sent.
+`lastmod`. The first build sends nothing, nor does a new configuration beyond the pages whose `lastmod` moved,
+and only URLs on `config.host` are sent.
 
 When the sitemaps are served from elsewhere (`config.sitemaps_url`), the key cannot follow them: IndexNow reads
 it on the site. Put `<key>.txt` in `public/` and set `config.index_now_key_location` to its URL; a build warns

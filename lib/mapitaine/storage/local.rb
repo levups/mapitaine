@@ -13,7 +13,7 @@ module Mapitaine
 
       def read(name)
         path = File.join(@directory, name)
-        File.read(path) if File.exist?(path)
+        File.binread(path) if File.exist?(path)
       end
 
       # Copied beside the target, then renamed: a crawler never downloads half a file.
