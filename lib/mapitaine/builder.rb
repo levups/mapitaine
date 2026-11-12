@@ -21,9 +21,15 @@ module Mapitaine
 
     Rendered = Data.define(:source_slug, :shard, :fingerprint, :files, :changed_urls)
 
-    Warning = Data.define(:source, :url, :message) do
+    # others: how many more times its source made the same mistake.
+    Warning = Data.define(:source, :url, :message, :others) do
+      def initialize(others: 0, **)
+        super
+      end
+
       def to_s
-        "#{source}: #{url} #{message}"
+        line = "#{source}: #{url} #{message}"
+        others.zero? ? line : "#{line}, and #{others} more like it"
       end
     end
 
@@ -57,6 +63,8 @@ module Mapitaine
       @changed_urls = []
       @checked_hreflangs = Set.new
       @reported = Set.new
+      @warning_index_by_mistake = {}
+      @other_count_by_mistake = Hash.new(0)
       @x_default = Xml.hreflang(@configuration.x_default)
       @hosts = @configuration.hosts
       @host_prefixes = @hosts.map { |host| "#{host}/" }
@@ -82,6 +90,7 @@ module Mapitaine
       @manifest.unsubmitted.replace(urls.last(MAX_UNSUBMITTED_URLS))
       upload(manifest_name, @manifest.to_json)
       submitted = submit(urls)
+      count_others
 
       Result.new(full: @full, written: @written, kept: @kept, deleted:, url_count: @manifest.files.sum { |file| file["urls"] },
         submitted:, warnings: @warnings)
@@ -245,9 +254,9 @@ module Mapitaine
 
     def inspect_page(source, page, seen_urls)
       page.urls.each do |url|
-        warn(source, url, @outside_message) unless on_host?(url)
-        warn(source, url, "is listed twice") unless seen_urls.add?(url)
-        warn(source, url, "is longer than #{MAX_URL_CHARACTERS} characters") if url.length > MAX_URL_CHARACTERS
+        warn_counted(source, :outside, url, @outside_message) unless on_host?(url)
+        warn_counted(source, :listed_twice, url, "is listed twice") unless seen_urls.add?(url)
+        warn_counted(source, :long, url, "is longer than #{MAX_URL_CHARACTERS} characters") if url.length > MAX_URL_CHARACTERS
       end
       page.url_by_locale.each do |hreflang, url|
         warn(source, url, "has hreflang #{hreflang.inspect}, not a language code") if @checked_hreflangs.add?(hreflang) && !hreflang.match?(HREFLANG)
@@ -262,7 +271,7 @@ module Mapitaine
       if page.rejected_lastmod
         warn_once(source, :rejected_lastmod, page.urls.first, "has a lastmod that is not a W3C date (#{page.rejected_lastmod.inspect}), left out")
       elsif page.modified_at && page.modified_at > @manifest.built_at
-        warn(source, page.urls.first, "has a lastmod in the future (#{page.lastmod})")
+        warn_counted(source, :future_lastmod, page.urls.first, "has a lastmod in the future (#{page.lastmod})")
       end
     end
 
@@ -275,6 +284,24 @@ module Mapitaine
     # For a mistake every page of a source would repeat.
     def warn_once(source, kind, url, message)
       warn(source, url, message) if @reported.add?([source.slug, kind])
+    end
+
+    # For a mistake any number of URLs of a source may share: the first is reported, the others are counted.
+    def warn_counted(source, kind, url, message)
+      mistake = [source.slug, kind]
+      if @warning_index_by_mistake.key?(mistake)
+        @other_count_by_mistake[mistake] += 1
+      else
+        @warning_index_by_mistake[mistake] = @warnings.size
+        warn(source, url, message)
+      end
+    end
+
+    def count_others
+      @other_count_by_mistake.each do |mistake, count|
+        index = @warning_index_by_mistake.fetch(mistake)
+        @warnings[index] = @warnings[index].with(others: count)
+      end
     end
 
     def warn(source, url, message)
