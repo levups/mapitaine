@@ -168,9 +168,57 @@ class BuildTest < MapitaineTest
     build
     xml = storage.xml("sitemap-post-00000.xml.gz")
 
-    assert_includes xml, "<loc>https://example.com/en/posts?title=Tom &amp; &quot;Jerry&quot; &lt;3</loc>"
+    assert_includes xml, "<loc>https://example.com/en/posts?title=Tom%20&amp;%20%22Jerry%22%20%3C3</loc>"
     assert_includes xml, "<image:image><image:loc>https://example.com/images/1.jpg</image:loc></image:image>" \
                          "<image:image><image:loc>https://cdn.example.com/1.jpg?a=1&amp;b=2</image:loc></image:image></url>"
+  end
+
+  def test_a_url_written_by_hand_is_percent_encoded
+    create_post(1)
+    by_hand = Class.new(PostSitemap) { url { |_post, locale| "/#{locale}/Café\u0001 d" + "\xE9j\xE0?q=100%25" } }
+    Mapitaine.configuration.sources = [by_hand]
+    build
+
+    assert_includes storage.xml("sitemap-post-00000.xml.gz"), "<loc>https://example.com/en/Caf%C3%A9%01%20d%E9j%E0?q=100%25</loc>"
+  end
+
+  def test_rails_locales_become_hreflang_codes_and_x_default_is_found_whatever_its_type
+    create_post(1, languages: "en,pt_BR")
+    strings = Class.new(PostSitemap) { locales { |post| post.languages.split(",") } }
+    Mapitaine.configuration.sources = [strings]
+    Mapitaine.configuration.x_default = :en
+    build
+    xml = storage.xml("sitemap-post-00000.xml.gz")
+
+    assert_includes xml, %(hreflang="pt-BR" href="https://example.com/pt_BR/posts/1")
+    assert_includes xml, %(hreflang="x-default" href="https://example.com/en/posts/1")
+  end
+
+  def test_two_languages_sharing_a_url_list_it_once
+    create_post(1, languages: "en,fr,de")
+    shared = Class.new(PostSitemap) { url { |post, locale| post_url(post, locale: (locale == :de) ? :en : locale) } }
+    Mapitaine.configuration.sources = [shared]
+    built = build
+    xml = storage.xml("sitemap-post-00000.xml.gz")
+
+    assert_equal 2, built.url_count
+    assert_equal 2, xml.scan("<loc>").size
+    assert_includes xml, %(hreflang="de" href="https://example.com/en/posts/1")
+  end
+
+  def test_lastmods_are_written_in_utc_and_the_index_takes_the_latest
+    create_post(1)
+    create_post(2)
+    tokyo = Time.new(2026, 1, 15, 10, 0, 0, "+09:00")
+    stamps = {1 => "2026-01-15T10:00+09:00", 2 => "2026-01-15T05:00:00Z"}
+    zoned = Class.new(PostSitemap) { lastmod { |post| stamps.fetch(post.id) } }
+    Mapitaine.configuration.sources = [zoned, Class.new(PageSitemap) { lastmod { tokyo } }]
+    build
+
+    assert_includes storage.xml("sitemap-post-00000.xml.gz"), "<lastmod>2026-01-15T01:00:00Z</lastmod>"
+    assert_includes storage.xml("sitemap.xml"), "sitemap-post-00000.xml.gz</loc><lastmod>2026-01-15T05:00:00Z</lastmod>"
+    assert_includes storage.xml("sitemap-page.xml.gz"), "<lastmod>2026-01-15T01:00:00Z</lastmod>"
+    assert_equal 9 * 3600, tokyo.utc_offset
   end
 
   def test_a_lastmod_block_is_fingerprinted_by_the_expression_it_names

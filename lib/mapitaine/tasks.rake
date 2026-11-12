@@ -17,7 +17,7 @@ namespace :mapitaine do
     report.call(Mapitaine.build(full: true))
   end
 
-  desc "Render every sitemap without publishing it, and fail on duplicate, foreign or future-dated URLs"
+  desc "Render every sitemap without publishing it, and fail on what looks wrong in it"
   task check: :environment do
     warnings = Mapitaine.check
     abort warnings.join("\n") if warnings.any?

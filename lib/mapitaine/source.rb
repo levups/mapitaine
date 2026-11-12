@@ -16,6 +16,10 @@ module Mapitaine
     SLUG_FORMAT = /\A[a-z0-9][a-z0-9_-]*\z/
     # A source that is not an Active Record relation is one shard, rendered at each build.
     WHOLE = "all"
+    # What RFC 3986 lets a URL hold as is. Anything else is percent-encoded, byte by byte.
+    URL_CHARACTERS = "A-Za-z0-9\\-._~:/?#\\[\\]@!$&'()*+,;=%"
+    UNSAFE_CHARACTER = /[^#{URL_CHARACTERS}]/
+    UNSAFE_BYTE = Regexp.new("[^#{URL_CHARACTERS}]", Regexp::NOENCODING)
 
     class << self
       def inherited(subclass)
@@ -144,13 +148,21 @@ module Mapitaine
       locales = definitions[:locales] ? Array(instance_exec(record, &definitions[:locales])) : configuration.locales
       url_by_locale = locales.filter_map do |locale|
         location = instance_exec(record, locale, &definitions.fetch(:url))
-        [locale, absolute(location)] if location
+        [Xml.hreflang(locale), absolute(location)] if location
       end
       Page.new(url_by_locale: url_by_locale.to_h, lastmod: lastmod_of(record), images: images_of(record))
     end
 
     def absolute(location)
-      location.start_with?("/") ? "#{configuration.host!}#{location}" : location
+      location = location.to_s
+      encoded(location.start_with?("/") ? "#{configuration.host!}#{location}" : location)
+    end
+
+    # Route helpers encode their URLs already; a URL written by hand may hold spaces or accents.
+    def encoded(url)
+      return url if url.ascii_only? && !url.match?(UNSAFE_CHARACTER)
+
+      url.b.gsub(UNSAFE_BYTE) { |byte| format("%%%02X", byte.ord) }.force_encoding(Encoding::UTF_8)
     end
 
     def lastmod_of(record)

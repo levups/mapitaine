@@ -8,6 +8,12 @@ module Mapitaine
       end
     end
 
+    # https://www.sitemaps.org/protocol.html
+    MAX_URL_LENGTH = 2_048
+    MAX_FILES_PER_INDEX = 50_000
+    # A language, then maybe a script and a region: en, pt-BR, zh-Hant-TW, es-419.
+    HREFLANG = /\A[a-z]{2,3}(-[a-z]{4})?(-([a-z]{2}|\d{3}))?\z/i
+
     Warning = Data.define(:source, :url, :message) do
       def to_s
         "#{source}: #{url} #{message}"
@@ -37,6 +43,7 @@ module Mapitaine
       @kept = []
       @warnings = []
       @changed_urls = []
+      @checked_hreflangs = Set.new
 
       @configuration.sources.each { |source_class| build_source(source_class.new(@configuration)) }
       publish_index
@@ -96,10 +103,12 @@ module Mapitaine
     end
 
     def publish_index
+      name = "#{@configuration.filename}.xml"
       entries = @manifest.files.map do |file|
         Xml.sitemap_entry("#{@configuration.sitemaps_url}/#{file["name"]}", file["lastmod"])
       end
-      upload("#{@configuration.filename}.xml", "#{Xml::INDEX_OPEN}#{entries.join}#{Xml::INDEX_CLOSE}")
+      inspect_index("#{@configuration.sitemaps_url}/#{name}", entries.size)
+      upload(name, "#{Xml::INDEX_OPEN}#{entries.join}#{Xml::INDEX_CLOSE}")
     end
 
     def upload(name, content)
@@ -116,13 +125,35 @@ module Mapitaine
       page.urls.each do |url|
         warn(source, url, "is outside #{@configuration.host!}") unless url.start_with?("#{@configuration.host!}/") || url == @configuration.host!
         warn(source, url, "is listed twice") unless seen_urls.add?(url)
+        warn(source, url, "is longer than #{MAX_URL_LENGTH} characters") if url.length > MAX_URL_LENGTH
       end
+      page.url_by_locale.each do |hreflang, url|
+        warn(source, url, "has hreflang #{hreflang.inspect}, not a language code") if @checked_hreflangs.add?(hreflang) && !hreflang.match?(HREFLANG)
+      end
+      inspect_lastmod(source, page)
+    end
+
+    def inspect_lastmod(source, page)
+      return if page.lastmod.nil?
+
       modified_at = page.modified_at
-      warn(source, page.urls.first, "has a lastmod in the future (#{Xml.timestamp(page.lastmod)})") if modified_at && modified_at > @manifest.built_at
+      if modified_at.nil?
+        warn(source, page.urls.first, "has a lastmod that is not a W3C date (#{page.lastmod.inspect}), left out")
+      elsif modified_at > @manifest.built_at
+        warn(source, page.urls.first, "has a lastmod in the future (#{Xml.timestamp(page.lastmod)})")
+      end
+    end
+
+    def inspect_index(url, file_count)
+      if file_count.zero?
+        warn("index", url, "lists no file: no source has a page")
+      elsif file_count > MAX_FILES_PER_INDEX
+        warn("index", url, "lists #{file_count} files, more than #{MAX_FILES_PER_INDEX}: raise shard_size")
+      end
     end
 
     def warn(source, url, message)
-      @warnings << Warning.new(source: source.slug, url:, message:)
+      @warnings << Warning.new(source: source.is_a?(Source) ? source.slug : source, url:, message:)
     end
 
     # The first build has no "before": submitting a whole site at once is not what IndexNow is for.

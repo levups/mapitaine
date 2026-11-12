@@ -11,13 +11,16 @@ module Mapitaine
     INDEX_CLOSE = "</sitemapindex>\n"
     # Google reads no more than 1,000 images per URL.
     MAX_IMAGES_PER_URL = 1_000
+    # https://www.w3.org/TR/NOTE-datetime: a year, a month, a day, or a time with its zone.
+    W3C_DATE = /\A\d{4}(-\d{2}(-\d{2})?)?\z/
+    W3C_TIME = /\A(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2})(?:\.\d+)?)?(Z|[+-]\d{2}:\d{2})\z/
 
     module_function
 
     # One <url> per language. Each lists every language of the page, itself included: search engines drop
     # hreflang links that are not returned by the page they point to.
     def url_entries(page, x_default:)
-      shared = "#{lastmod_tag(page.lastmod)}#{alternates(page, x_default)}#{images(page.images)}</url>\n"
+      shared = "#{lastmod_tag(page.lastmod)}#{alternates(page, hreflang(x_default))}#{images(page.images)}</url>\n"
       page.urls.map { |url| "<url><loc>#{escape(url)}</loc>#{shared}" }
     end
 
@@ -25,11 +28,31 @@ module Mapitaine
       "<sitemap><loc>#{escape(url)}</loc>#{lastmod_tag(lastmod)}</sitemap>\n"
     end
 
+    # The W3C date or time of a lastmod, in UTC, or nil when it is not one.
     def timestamp(value)
-      return if value.nil?
-      return value.utc.iso8601 if value.respond_to?(:utc)
+      case value
+      when nil then nil
+      when DateTime then value.to_time.getutc.iso8601
+      when Date then value.iso8601
+      when String then w3c_timestamp(value)
+      else value.getutc.iso8601 if value.respond_to?(:getutc)
+      end
+    end
 
-      value.respond_to?(:iso8601) ? value.iso8601 : value.to_s
+    def w3c_timestamp(text)
+      return text if text.match?(W3C_DATE)
+
+      year, month, day, hour, minute, second, zone = W3C_TIME.match(text)&.captures
+      return unless year
+
+      Time.new(year.to_i, month.to_i, day.to_i, hour.to_i, minute.to_i, second.to_i, (zone == "Z") ? "UTC" : zone).getutc.iso8601
+    rescue ArgumentError
+      nil
+    end
+
+    # Rails locales spell regions with an underscore (pt_BR), hreflang with a hyphen (pt-BR).
+    def hreflang(locale)
+      locale.to_s.tr("_", "-")
     end
 
     def escape(text)
@@ -45,7 +68,8 @@ module Mapitaine
       return "" if page.url_by_locale.size < 2
 
       links = page.url_by_locale.map { |locale, url| alternate(locale, url) }
-      links << alternate("x-default", page.url_by_locale[x_default]) if page.url_by_locale.key?(x_default)
+      default_url = page.url_by_locale[x_default]
+      links << alternate("x-default", default_url) if default_url
       links.join
     end
 
