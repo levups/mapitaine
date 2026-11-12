@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-module Mapitaine
+module Maptain
   # Tells Bing, Yandex, Seznam and Naver which URLs changed: https://www.indexnow.org/documentation
   class IndexNow
     ENDPOINT = URI("https://api.indexnow.org/indexnow")

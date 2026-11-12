@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-module Mapitaine
+module Maptain
   module Xml
     DECLARATION = %(<?xml version="1.0" encoding="UTF-8"?>\n)
     URLSET_OPEN = %(#{DECLARATION}<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" ) +

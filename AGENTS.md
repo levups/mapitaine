@@ -1,6 +1,6 @@
-# Mapitaine
+# Maptain
 
-XML sitemaps for Rails sites in many languages: one `Mapitaine::Source` class per kind of page, hreflang links
+XML sitemaps for Rails sites in many languages: one `Maptain::Source` class per kind of page, hreflang links
 written from the languages of each record, files cut by ranges of ids, and builds that rewrite only the ranges
 whose count or latest change moved.
 
@@ -23,7 +23,7 @@ joins CI's `rails` matrix.
 - Active Record, Action Pack and Active Storage stay out of the gemspec: a source duck-types its relation, the
   Railtie brings the route helpers, and `Storage::ActiveStorage` looks its service up at the first call. Cloud
   storage goes through Active Storage only: no SDK of our own.
-- Mapitaine never requests a page of the site, and never hooks into models: a build reads the database and the
+- Maptain never requests a page of the site, and never hooks into models: a build reads the database and the
   manifest of the last build, nothing else.
 - A file name is a promise: the same ids land in the same file at every build. Anything that moves them belongs in
   `Configuration#digest` (the file name), in each shard's fingerprint (the shard size), or rewrites everything by
@@ -38,7 +38,7 @@ joins CI's `rails` matrix.
 
 ## Rules for all our gems
 
-This section and the next two read the same in super-slim, gamba, crumbly, agentry and mapitaine: change all five
+This section and the next two read the same in super-slim, gamba, crumbly, agentry and maptain: change all five
 together.
 
 - Every maintained Ruby and Rails (https://endoflife.date), nothing older. The oldest sets `required_ruby_version`,

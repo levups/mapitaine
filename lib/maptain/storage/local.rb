@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-module Mapitaine
+module Maptain
   module Storage
     CONTENT_TYPE_BY_EXTENSION = {
       ".gz" => "application/gzip", ".json" => "application/json", ".txt" => "text/plain", ".xml" => "application/xml"

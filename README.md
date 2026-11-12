@@ -1,33 +1,33 @@
-# Mapitaine
+# <img src="docs/logo.svg" alt="" width="56" align="top"> Maptain
 
 Rails sitemaps that rewrite only what changed. Each build asks your database what moved since the last one and
 leaves every other file alone, so it runs hundreds of times faster than regenerating everything. You describe
-each kind of page once, in a small class; Mapitaine writes one URL per language with its `hreflang` links.
+each kind of page once, in a small class; Maptain writes one URL per language with its `hreflang` links.
 
 ```ruby
 # app/sitemaps/product_sitemap.rb
-class ProductSitemap < Mapitaine::Source
+class ProductSitemap < Maptain::Source
   scope { Product.published }
   url { |product, locale| product_url(product, locale:) }
 end
 ```
 
 ```sh
-bin/rails mapitaine:build
+bin/rails maptain:build
 ```
 
 That writes `public/sitemap.xml` and the files it lists. Run it again an hour later: if nothing changed, it
 takes a few milliseconds and writes nothing.
 
-Website, guide and benchmarks: <https://levups.github.io/mapitaine/>.
+Website, guide and benchmarks: <https://levups.github.io/maptain/>.
 
 ## Is it for you?
 
-Mapitaine was written for one site: 30,000 products in 24 languages, 720,000 URLs. It will help most if yours
+Maptain was written for one site: 30,000 products in 24 languages, 720,000 URLs. It will help most if yours
 looks a bit like that, with records in a database, translated, and changing a little every day.
 
 A site of a few hundred pages in one language does not need it: [sitemap_generator](https://github.com/kjvarga/sitemap_generator)
-or a view that lists them will do. Mapitaine is also young (0.1), so read [what it does not do yet](#not-there-yet)
+or a view that lists them will do. Maptain is also young (0.1), so read [what it does not do yet](#not-there-yet)
 before you switch.
 
 ## What it does differently
@@ -48,15 +48,15 @@ Its only runtime dependency is Active Support.
 
 ## How long it takes
 
-`bench/build.rb` builds the same sitemap with Mapitaine and with sitemap_generator, on the same machine. When a
-few records changed, Mapitaine is about 400 times faster: it rewrites 2 files where sitemap_generator writes them
+`bench/build.rb` builds the same sitemap with Maptain and with sitemap_generator, on the same machine. When a
+few records changed, Maptain is about 400 times faster: it rewrites 2 files where sitemap_generator writes them
 all again. Once a week, a full build rewrites everything to catch what the database numbers cannot see; that one
 is 15 times faster.
 
 On 30,000 records in 24 languages (SQLite in memory, Ruby 4.0.9 without YJIT, an Apple M5 Max, median of 3
 runs; seconds depend on the machine, the ratios hold from one to the next):
 
-| Build | Mapitaine | sitemap_generator | Faster | Files written |
+| Build | Maptain | sitemap_generator | Faster | Files written |
 |---|---|---|---|---|
 | Nothing new | 0.004 s | 150 s | (nothing to write) | 0 |
 | 3 records changed | 0.35 s | 150 s | 430× | 2 |
@@ -64,7 +64,7 @@ runs; seconds depend on the machine, the ratios hold from one to the next):
 
 The URLs there are plain strings. With route helpers and a real database every build takes longer, and the gap
 narrows a little: on a copy of a production app's database, 560,000 URLs took 35 s in full (13 times faster) and 2.8 s after
-three products changed (170 times faster), where sitemap_generator took 468 s. The [benchmarks page](https://levups.github.io/mapitaine/benchmarks.html) explains
+three products changed (170 times faster), where sitemap_generator took 468 s. The [benchmarks page](https://levups.github.io/maptain/benchmarks.html) explains
 where the time goes.
 
 ## Getting started
@@ -72,14 +72,14 @@ where the time goes.
 1. Add the gem. It needs Ruby 3.3 and Rails 8.0, or newer.
 
    ```ruby
-   gem "mapitaine"
+   gem "maptain"
    ```
 
 2. Name the host of the site:
 
    ```ruby
-   # config/initializers/mapitaine.rb
-   Mapitaine.configure do |config|
+   # config/initializers/maptain.rb
+   Maptain.configure do |config|
      config.host = "https://www.example.com"
      config.locales = %i[en fr de]   # default: I18n.available_locales
      config.x_default = :en          # the language of hreflang="x-default"; none when left out
@@ -92,7 +92,7 @@ where the time goes.
 4. Look at what it would write, without writing it:
 
    ```sh
-   bin/rails mapitaine:check
+   bin/rails maptain:check
    ```
 
    It fails on a URL outside the site, a URL listed twice, a date in the future, and a few other
@@ -101,7 +101,7 @@ where the time goes.
 5. Build, and tell crawlers where the index is, in `public/robots.txt`:
 
    ```sh
-   bin/rails mapitaine:build
+   bin/rails maptain:build
    ```
 
    ```
@@ -114,7 +114,7 @@ where the time goes.
    # config/recurring.yml
    production:
      sitemap:
-       command: "Mapitaine.build"
+       command: "Maptain.build"
        schedule: every hour
    ```
 
@@ -122,18 +122,18 @@ The rest of this README is the guide: languages, dates, files, storage on S3 and
 
 ## Coming from sitemap_generator
 
-| sitemap_generator | Mapitaine |
+| sitemap_generator | Maptain |
 |---|---|
-| `config/sitemap.rb`, one `add` per URL | one `Mapitaine::Source` per kind of page, in `app/sitemaps` |
+| `config/sitemap.rb`, one `add` per URL | one `Maptain::Source` per kind of page, in `app/sitemaps` |
 | `alternates:` written by hand for each URL | `hreflang` links written from `config.locales`, or a source's `locales` |
 | `default_host` | `config.host`, and `config.host_by_locale` for one host per language |
-| `rake sitemap:refresh` | `bin/rails mapitaine:build`, which rewrites only what changed |
+| `rake sitemap:refresh` | `bin/rails maptain:build`, which rewrites only what changed |
 | `lastmod:` | `updated_at` by default, or `lastmod :column` |
 | `priority:`, `changefreq:` | left out: Google ignores them |
 | pinging search engines | IndexNow, with `config.index_now_key` |
 | `sitemaps_host`, adapters | `config.sitemaps_url`, and any Active Storage service |
 
-sitemap_generator names its index `sitemap.xml.gz`, Mapitaine `sitemap.xml`: change the `Sitemap:` line of
+sitemap_generator names its index `sitemap.xml.gz`, Maptain `sitemap.xml`: change the `Sitemap:` line of
 `robots.txt`, and delete the old files once the first build has written the new ones.
 
 ## Sources
@@ -144,7 +144,7 @@ language as `I18n.locale`, so a slug read from a translated attribute comes out 
 language that is not in `I18n.available_locales` runs in the app's.
 
 ```ruby
-class ProductSitemap < Mapitaine::Source
+class ProductSitemap < Maptain::Source
   # The records: an Active Record relation. Add the `includes` your other blocks need.
   scope { Product.published.includes(:photos) }
 
@@ -169,7 +169,7 @@ The model needs an integer primary key: files are cut by ranges of ids.
 The scope can be any list. Such a source is one file, rendered at each build and published when it differs:
 
 ```ruby
-class PageSitemap < Mapitaine::Source
+class PageSitemap < Maptain::Source
   scope { %i[root about contact] }
   url { |page, locale| public_send(:"#{page}_url", locale:) }
 end
@@ -222,7 +222,7 @@ its own for content changes.
 `lastmod` also takes a block. The build then needs to know what to watch in the database, as an SQL expression:
 
 ```ruby
-class ProductSitemap < Mapitaine::Source
+class ProductSitemap < Maptain::Source
   scope { Product.published }
   url { |product, locale| product_url(product, locale:) }
   lastmod { |product| [product.updated_at, product.reviewed_at].compact.max }
@@ -244,11 +244,11 @@ only the files that changed.
 ## Building
 
 ```sh
-bin/rails mapitaine:build     # rewrite the files whose records changed
-bin/rails mapitaine:rebuild   # rewrite everything
+bin/rails maptain:build     # rewrite the files whose records changed
+bin/rails maptain:rebuild   # rewrite everything
 ```
 
-`Mapitaine.build` does the same from Ruby and returns what it did (`full`, `written`, `kept`, `deleted`,
+`Maptain.build` does the same from Ruby and returns what it did (`full`, `written`, `kept`, `deleted`,
 `url_count`, `submitted`, `warnings`).
 
 ### How a build decides
@@ -264,15 +264,15 @@ Some changes leave those numbers alone: `update_columns`, a change in another ta
 `fingerprint`, or `touch` the record from it. For the rest, a full build comes once a week by itself:
 
 ```ruby
-config.rebuild_every = 1.day   # default: a week; nil leaves it to mapitaine:rebuild
+config.rebuild_every = 1.day   # default: a week; nil leaves it to maptain:rebuild
 ```
 
-After deploying a change to a `url` block, run `mapitaine:rebuild` rather than wait.
+After deploying a change to a `url` block, run `maptain:rebuild` rather than wait.
 
 A build notes the files it is about to add in `sitemap-manifest.json`, its memory of what each file held, then
 writes the sitemap files, then the index, then removes the files no range fills any more, then writes the
 manifest again. A build that fails midway is repaired by the next one. Changing the host, the languages, the
-size of a range or the version of Mapitaine rewrites everything it moves once.
+size of a range or the version of Maptain rewrites everything it moves once.
 
 ## Storage
 
@@ -294,8 +294,8 @@ sitemaps:
 ```
 
 ```ruby
-Mapitaine.configure do |config|
-  config.storage = Mapitaine::Storage::ActiveStorage.new(:sitemaps, prefix: "sitemaps")
+Maptain.configure do |config|
+  config.storage = Maptain::Storage::ActiveStorage.new(:sitemaps, prefix: "sitemaps")
   config.sitemaps_url = "https://cdn.example.com/sitemaps"   # where those files are served from
 end
 ```
@@ -335,7 +335,7 @@ kept in the manifest and sent again with the next build.
 ## Checking
 
 ```sh
-bin/rails mapitaine:check
+bin/rails maptain:check
 ```
 
 It renders every sitemap without publishing or submitting anything, and fails on:
@@ -349,16 +349,16 @@ It renders every sitemap without publishing or submitting anything, and fails on
 When many URLs of a source make the same mistake, one line names the first and counts the others. A build
 reports the same, for the files it rewrites, in `warnings`.
 
-Mapitaine never requests a page of the site. Whether a URL answers 200 or carries a `noindex` is what Search
+Maptain never requests a page of the site. Whether a URL answers 200 or carries a `noindex` is what Search
 Console reports, from the visits crawlers make anyway.
 
 ## Instrumentation
 
-`build.mapitaine` wraps a build, with `full` and `result` in its payload; `shard.mapitaine` wraps each file
+`build.maptain` wraps a build, with `full` and `result` in its payload; `shard.maptain` wraps each file
 range it renders, with `source` and `shard`.
 
 ```ruby
-ActiveSupport::Notifications.subscribe("build.mapitaine") do |event|
+ActiveSupport::Notifications.subscribe("build.maptain") do |event|
   built = event.payload[:result]
   Rails.logger.info "Sitemap: #{built.written.size} files written in #{event.duration.round} ms"
 end

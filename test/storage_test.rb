@@ -16,7 +16,7 @@ class StorageTest < Minitest::Test
   def test_local_writes_reads_and_deletes_and_leaves_no_partial_file
     with_file("<xml/>") do |path, directory|
       public_directory = File.join(directory, "public")
-      storage = Mapitaine::Storage::Local.new(public_directory)
+      storage = Maptain::Storage::Local.new(public_directory)
 
       assert_nil storage.read("sitemap.xml")
       storage.write("sitemap.xml", path)
@@ -34,7 +34,7 @@ class StorageTest < Minitest::Test
   def test_active_storage_goes_through_the_service_under_the_prefix
     with_file("<xml/>") do |path, directory|
       service = ActiveStorage::Service::DiskService.new(root: File.join(directory, "storage"))
-      storage = Mapitaine::Storage::ActiveStorage.new(service, prefix: "sitemaps")
+      storage = Maptain::Storage::ActiveStorage.new(service, prefix: "sitemaps")
 
       assert_nil storage.read("sitemap.xml")
       storage.write("sitemap.xml", path)
@@ -52,7 +52,7 @@ class StorageTest < Minitest::Test
     uploads = []
     service = Object.new
     service.define_singleton_method(:upload) { |key, _io, **options| uploads << [key, options] }
-    with_file("") { |path| Mapitaine::Storage::ActiveStorage.new(service).write("sitemap-post-00000.xml.gz", path) }
+    with_file("") { |path| Maptain::Storage::ActiveStorage.new(service).write("sitemap-post-00000.xml.gz", path) }
 
     assert_equal [["sitemap-post-00000.xml.gz", {content_type: "application/gzip"}]], uploads
   end

@@ -1,9 +1,9 @@
 # frozen_string_literal: true
 
-module Mapitaine
+module Maptain
   # One kind of page. A subclass names its records, their URLs and their languages:
   #
-  #   class ProductSitemap < Mapitaine::Source
+  #   class ProductSitemap < Maptain::Source
   #     scope { Product.published }
   #     url { |product, locale| product_url(product, locale:) }
   #   end

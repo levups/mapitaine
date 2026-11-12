@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-module Mapitaine
+module Maptain
   class Builder
     # full: whether this build rewrote everything, asked to or because rebuild_every had passed.
     Result = Data.define(:full, :written, :kept, :deleted, :url_count, :submitted, :warnings) do
@@ -40,8 +40,8 @@ module Mapitaine
     end
 
     def build(full: false)
-      ActiveSupport::Notifications.instrument("build.mapitaine", full:) do |payload|
-        payload[:result] = Dir.mktmpdir("mapitaine") { |directory| build_in(directory, full:) }
+      ActiveSupport::Notifications.instrument("build.maptain", full:) do |payload|
+        payload[:result] = Dir.mktmpdir("maptain") { |directory| build_in(directory, full:) }
         payload[:full] = payload[:result].full
         payload[:result]
       end
@@ -117,7 +117,7 @@ module Mapitaine
       writer = ShardWriter.new(directory: @directory, basename: source.basename(shard))
       changed_urls = []
       urls = [] if @diffing
-      ActiveSupport::Notifications.instrument("shard.mapitaine", source: source.slug, shard:) do
+      ActiveSupport::Notifications.instrument("shard.maptain", source: source.slug, shard:) do
         source.each_page(shard) do |page|
           inspect_page(source, page, seen_urls)
           writer.add(Xml.url_entries(page, x_default: @x_default), page.lastmod)
