@@ -1,12 +1,12 @@
 # Contributing
 
-Thank you for helping. Mapitaine is maintained by Level UP Solutions, two developers who use it in production
+Thank you for helping. Maptain is maintained by Level UP Solutions, two developers who use it in production
 every day: small, focused pull requests get reviewed fastest.
 
 ## Before you start
 
 - **Bugs**: open an issue with the smallest source class and records that reproduce it, and the XML you expected.
-- **Features**: open an issue first, so we can agree on the scope before you write the code. Mapitaine stays small:
+- **Features**: open an issue first, so we can agree on the scope before you write the code. Maptain stays small:
   it writes what search engines read today, and leaves out what they ignore.
 - **Security issues** never go in a public issue: see [SECURITY.md](SECURITY.md).
 

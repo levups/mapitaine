@@ -2,12 +2,12 @@
 
 require "test_helper"
 
-class IndexNowTest < MapitaineTest
+class IndexNowTest < MaptainTest
   Response = Data.define(:code)
 
   def setup
     super
-    Mapitaine.configuration.index_now_key = "0123456789abcdef"
+    Maptain.configuration.index_now_key = "0123456789abcdef"
     @requests = requests = []
     @response_code = "200"
     test = self
@@ -54,7 +54,7 @@ class IndexNowTest < MapitaineTest
   end
 
   def test_a_key_the_site_already_serves_is_named_and_not_published
-    Mapitaine.configuration.index_now_key_location = "/indexnow-key.txt"
+    Maptain.configuration.index_now_key_location = "/indexnow-key.txt"
     create_post(1)
     build
     Post.find(1).update!(title: "Edited", updated_at: Time.now)
@@ -101,10 +101,10 @@ class IndexNowTest < MapitaineTest
     create_post(5)
     create_post(15)
     build
-    Mapitaine.configuration.locales = %i[en fr de]
+    Maptain.configuration.locales = %i[en fr de]
 
     assert_equal 0, build.submitted
-    Mapitaine.configuration.sources = [Class.new(PostSitemap) { shard_size 20 }, PageSitemap]
+    Maptain.configuration.sources = [Class.new(PostSitemap) { shard_size 20 }, PageSitemap]
     Post.find(5).update!(title: "Edited", updated_at: Time.now)
 
     build
@@ -128,7 +128,7 @@ class IndexNowTest < MapitaineTest
     create_post(1)
     create_post(2)
     yearly = Class.new(PostSitemap) { lastmod { "2026" } }
-    Mapitaine.configuration.sources = [yearly]
+    Maptain.configuration.sources = [yearly]
     build
     Post.where(id: 2).delete_all
     build
@@ -137,15 +137,15 @@ class IndexNowTest < MapitaineTest
   end
 
   def test_check_reports_a_key_the_site_does_not_serve
-    Mapitaine.configuration.sitemaps_url = "https://cdn.example.com/sitemaps"
+    Maptain.configuration.sitemaps_url = "https://cdn.example.com/sitemaps"
 
-    assert_equal 1, Mapitaine.check.size
+    assert_equal 1, Maptain.check.size
   end
 
   def test_a_date_of_the_day_of_the_last_build_is_a_change
     create_post(1)
     dated = Class.new(PostSitemap) { lastmod { |post| post.reviewed_at&.to_date || Date.new(2026, 1, 1) } }
-    Mapitaine.configuration.sources = [dated]
+    Maptain.configuration.sources = [dated]
     build
     Post.find(1).update!(reviewed_at: Time.now)
 
@@ -153,7 +153,7 @@ class IndexNowTest < MapitaineTest
   end
 
   def test_only_urls_of_the_host_are_submitted
-    Mapitaine.configuration.sources = [Class.new(PostSitemap) { url { |post, locale| (locale == :fr) ? "https://example.fr/posts/#{post.id}" : "/en/posts/#{post.id}" } }]
+    Maptain.configuration.sources = [Class.new(PostSitemap) { url { |post, locale| (locale == :fr) ? "https://example.fr/posts/#{post.id}" : "/en/posts/#{post.id}" } }]
     create_post(1)
     build
     Post.find(1).update!(title: "Edited", updated_at: Time.now)
@@ -163,8 +163,8 @@ class IndexNowTest < MapitaineTest
   end
 
   def test_each_host_is_sent_its_own_urls_and_where_it_serves_the_key
-    Mapitaine.configuration.host_by_locale = {fr: "https://fr.example.com"}
-    Mapitaine.configuration.index_now_key_location = "/indexnow-key.txt"
+    Maptain.configuration.host_by_locale = {fr: "https://fr.example.com"}
+    Maptain.configuration.index_now_key_location = "/indexnow-key.txt"
     create_post(1)
     build
     Post.find(1).update!(title: "Edited", updated_at: Time.now)
@@ -181,7 +181,7 @@ class IndexNowTest < MapitaineTest
   end
 
   def test_a_host_whose_name_begins_like_another_is_sent_its_own_urls
-    Mapitaine.configuration.host_by_locale = {fr: "https://example.community"}
+    Maptain.configuration.host_by_locale = {fr: "https://example.community"}
     create_post(1)
     build
     Post.find(1).update!(title: "Edited", updated_at: Time.now)
@@ -192,14 +192,14 @@ class IndexNowTest < MapitaineTest
   end
 
   def test_a_key_the_site_does_not_serve_is_reported
-    Mapitaine.configuration.sitemaps_url = "https://cdn.example.com/sitemaps"
+    Maptain.configuration.sitemaps_url = "https://cdn.example.com/sitemaps"
     create_post(1)
     built = build
 
     refute storage.content_by_name.key?("0123456789abcdef.txt")
     assert_equal ["indexnow: https://example.com/0123456789abcdef.txt must hold the key: sitemaps go to https://cdn.example.com/sitemaps, " \
       'so put 0123456789abcdef.txt in public/ and set index_now_key_location to "/0123456789abcdef.txt"'], built.warnings.map(&:to_s)
-    Mapitaine.configuration.index_now_key_location = "/0123456789abcdef.txt"
+    Maptain.configuration.index_now_key_location = "/0123456789abcdef.txt"
 
     assert_empty build.warnings
   end
@@ -217,7 +217,7 @@ class IndexNowTest < MapitaineTest
   end
 
   def test_an_endpoint_that_cannot_be_reached_is_tried_once_however_many_hosts_wait
-    Mapitaine.configuration.host_by_locale = {fr: "https://fr.example.com"}
+    Maptain.configuration.host_by_locale = {fr: "https://fr.example.com"}
     create_post(1)
     build
     Post.find(1).update!(title: "Edited", updated_at: Time.now)
@@ -233,7 +233,7 @@ class IndexNowTest < MapitaineTest
   end
 
   def test_a_refusal_does_not_keep_the_next_host_from_being_asked
-    Mapitaine.configuration.host_by_locale = {fr: "https://fr.example.com"}
+    Maptain.configuration.host_by_locale = {fr: "https://fr.example.com"}
     create_post(1)
     build
     Post.find(1).update!(title: "Edited", updated_at: Time.now)
@@ -249,7 +249,7 @@ class IndexNowTest < MapitaineTest
       batches << JSON.parse(body)["urlList"].size
       Response.new(code: "202")
     end
-    index_now = Mapitaine::IndexNow.new(key: "key", transport:)
+    index_now = Maptain::IndexNow.new(key: "key", transport:)
 
     replies = index_now.submit("https://example.com", Array.new(10_001) { |number| "https://example.com/#{number}" })
 
@@ -266,7 +266,7 @@ class IndexNowTest < MapitaineTest
 
       Response.new(code: status)
     end
-    replies = Mapitaine::IndexNow.new(key: "key", transport:)
+    replies = Maptain::IndexNow.new(key: "key", transport:)
       .submit("https://example.com", Array.new(10_001) { |number| "https://example.com/#{number}" })
 
     assert_equal [202, "Errno::ECONNRESET"], replies.map(&:status)
@@ -276,7 +276,7 @@ class IndexNowTest < MapitaineTest
   def test_whatever_the_transport_raises_is_a_reply_that_did_not_come
     errors = [Net::HTTPBadResponse.new("wrong status line"), Zlib::DataError.new("incorrect header check"), Net::HTTPFatalError.new("503", nil)]
     statuses = errors.map do |error|
-      Mapitaine::IndexNow.new(key: "key", transport: ->(*) { raise error }).submit("https://example.com", %w[https://example.com/1]).first.status
+      Maptain::IndexNow.new(key: "key", transport: ->(*) { raise error }).submit("https://example.com", %w[https://example.com/1]).first.status
     end
 
     assert_equal %w[Net::HTTPBadResponse Zlib::DataError Net::HTTPFatalError], statuses
@@ -288,7 +288,7 @@ class IndexNowTest < MapitaineTest
       attempts += 1
       raise Errno::ETIMEDOUT
     end
-    replies = Mapitaine::IndexNow.new(key: "key", transport:)
+    replies = Maptain::IndexNow.new(key: "key", transport:)
       .submit("https://example.com", Array.new(20_001) { |number| "https://example.com/#{number}" })
 
     assert_equal 1, attempts
@@ -302,7 +302,7 @@ class IndexNowTest < MapitaineTest
     Post.find(1).update!(title: "Edited", updated_at: Time.now)
     self.response_code = "429"
     build
-    Mapitaine.configuration.index_now_key = ""
+    Maptain.configuration.index_now_key = ""
     built = build
 
     refute storage.content_by_name.key?(".txt")
@@ -315,7 +315,7 @@ class IndexNowTest < MapitaineTest
     create_post(1)
     build
     Post.find(1).update!(title: "Edited", updated_at: Time.now)
-    Mapitaine.check
+    Maptain.check
 
     assert_empty @requests
   end

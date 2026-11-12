@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-module Mapitaine
+module Maptain
   class Configuration
     # A full build now and then catches what no fingerprint sees: update_columns, a change in another table,
     # a new url block, a file removed from the storage.
@@ -23,7 +23,7 @@ module Mapitaine
     end
 
     def host!
-      host || raise(ConfigurationError, "Mapitaine.configuration.host is not set")
+      host || raise(ConfigurationError, "Maptain.configuration.host is not set")
     end
 
     # Frozen: a host added in place would be neither checked nor found.

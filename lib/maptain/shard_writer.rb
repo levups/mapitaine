@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-module Mapitaine
+module Maptain
   # Writes the pages of one shard as gzipped sitemap files, opening a second file when the first is full.
   class ShardWriter
     # https://www.sitemaps.org/protocol.html: 50,000 URLs and 50MB (52,428,800 bytes) a file, uncompressed.
@@ -44,7 +44,7 @@ module Mapitaine
       suffix = @files.empty? ? "" : "-#{@files.size + 1}"
       @name = "#{@basename}#{suffix}.xml.gz"
       @path = File.join(@directory, @name)
-      @gzip = Zlib::GzipWriter.open(@path)
+      @gzip = Zlib::GzipWriter.open(@path, Zlib::BEST_COMPRESSION)
       @file_digest = Digest::SHA256.new
       @url_count = 0
       @bytes = Xml::URLSET_CLOSE.bytesize

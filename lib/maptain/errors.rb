@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-module Mapitaine
+module Maptain
   class Error < StandardError; end
 
   class ConfigurationError < Error; end

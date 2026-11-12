@@ -15,7 +15,7 @@
 #
 #   bin/release --check v1.2.0     # fails unless the tag matches the gemspec's version and has notes
 #   bin/release --notes v1.2.0     # the GitHub release notes: the version's section of CHANGELOG.md
-#   bin/release --title v1.2.0     # the GitHub release title, "Mapitaine 1.2.0"
+#   bin/release --title v1.2.0     # the GitHub release title, "Maptain 1.2.0"
 
 require "date"
 require "json"

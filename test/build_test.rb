@@ -2,7 +2,7 @@
 
 require "test_helper"
 
-class BuildTest < MapitaineTest
+class BuildTest < MaptainTest
   def test_first_build_announces_its_files_writes_one_per_shard_then_the_index_then_the_manifest
     create_post(1)
     create_post(12)
@@ -136,7 +136,7 @@ class BuildTest < MapitaineTest
     build
     Post.where(id: 15).delete_all
     create_post(25)
-    Mapitaine.configuration.sources = [Class.new(PostSitemap) { shard_size 20 }, PageSitemap]
+    Maptain.configuration.sources = [Class.new(PostSitemap) { shard_size 20 }, PageSitemap]
     built = build
 
     assert_equal %w[sitemap-post-00001.xml.gz], built.written
@@ -173,7 +173,7 @@ class BuildTest < MapitaineTest
   def test_a_shard_rendered_again_without_a_visible_change_is_not_uploaded
     create_post(1)
     fixed = Class.new(PostSitemap) { lastmod { Date.new(2026, 1, 1) } }
-    Mapitaine.configuration.sources = [fixed]
+    Maptain.configuration.sources = [fixed]
     build
     Post.where(id: 1).update_all(updated_at: LONG_AGO + 60)
     built = build
@@ -206,7 +206,7 @@ class BuildTest < MapitaineTest
     assert_predicate built, :full
     assert_equal %w[sitemap-post-00000.xml.gz sitemap-page.xml.gz], built.written
     refute_predicate build, :full
-    Mapitaine.configuration.rebuild_every = nil
+    Maptain.configuration.rebuild_every = nil
     storage.content_by_name["sitemap-manifest.json"] = JSON.generate(manifest)
 
     assert_empty build.written
@@ -224,14 +224,14 @@ class BuildTest < MapitaineTest
       end
     end.new
     failing.content_by_name.merge!(storage.content_by_name)
-    Mapitaine.configuration.storage = failing
+    Maptain.configuration.storage = failing
 
-    assert_raises(IOError) { Mapitaine.build }
+    assert_raises(IOError) { Maptain.build }
     assert failing.content_by_name.key?("sitemap-post-00001.xml.gz")
     Post.where(id: 12).delete_all
     @storage = MemoryStorage.new
     storage.content_by_name.merge!(failing.content_by_name)
-    Mapitaine.configuration.storage = storage
+    Maptain.configuration.storage = storage
     built = build
 
     assert_equal %w[sitemap-post-00001.xml.gz], built.deleted
@@ -248,7 +248,7 @@ class BuildTest < MapitaineTest
   def test_a_changed_configuration_rewrites_everything
     create_post(1)
     build
-    Mapitaine.configuration.x_default = :fr
+    Maptain.configuration.x_default = :fr
     built = build
 
     assert_equal %w[sitemap-post-00000.xml.gz sitemap-page.xml.gz], built.written
@@ -257,7 +257,7 @@ class BuildTest < MapitaineTest
   def test_a_language_moved_to_a_host_of_its_own_rewrites_everything
     create_post(1)
     build
-    Mapitaine.configuration.host_by_locale = {fr: "https://fr.example.com"}
+    Maptain.configuration.host_by_locale = {fr: "https://fr.example.com"}
     built = build
 
     assert_equal %w[sitemap-post-00000.xml.gz sitemap-page.xml.gz], built.written
@@ -278,7 +278,7 @@ class BuildTest < MapitaineTest
 
   def test_a_source_that_is_not_a_relation_is_rewritten_when_its_content_changes
     build
-    Mapitaine.configuration.sources = [PostSitemap, Class.new(PageSitemap) { scope { %i[about about] } }]
+    Maptain.configuration.sources = [PostSitemap, Class.new(PageSitemap) { scope { %i[about about] } }]
     built = build
 
     assert_equal %w[sitemap-page.xml.gz], built.written
@@ -287,14 +287,14 @@ class BuildTest < MapitaineTest
   def test_the_scope_may_be_ordered
     create_post(1)
     ordered = Class.new(PostSitemap) { scope { Post.order(:title) } }
-    Mapitaine.configuration.sources = [ordered]
+    Maptain.configuration.sources = [ordered]
 
     assert_equal %w[sitemap-post-00000.xml.gz], build.written
   end
 
   def test_sitemaps_served_from_elsewhere_are_listed_there
     create_post(1)
-    Mapitaine.configuration.sitemaps_url = "https://cdn.example.com/sitemaps/"
+    Maptain.configuration.sitemaps_url = "https://cdn.example.com/sitemaps/"
     build
 
     assert_includes storage.xml("sitemap.xml"), "<loc>https://cdn.example.com/sitemaps/sitemap-post-00000.xml.gz</loc>"
@@ -306,7 +306,7 @@ class BuildTest < MapitaineTest
       url { |post, locale| "/#{locale}/posts?title=#{post.title}" }
       images { |post| ["/images/#{post.id}.jpg", "https://cdn.example.com/#{post.id}.jpg?a=1&b=2"] }
     end
-    Mapitaine.configuration.sources = [with_images]
+    Maptain.configuration.sources = [with_images]
     build
     xml = storage.xml("sitemap-post-00000.xml.gz")
 
@@ -321,7 +321,7 @@ class BuildTest < MapitaineTest
       url { |_post, locale| "/#{locale}/Café\u0001 d" + "\xE9j\xE0?q=100%25&off=100%" }
       images { ["//cdn.example.com/a b.jpg"] }
     end
-    Mapitaine.configuration.sources = [by_hand]
+    Maptain.configuration.sources = [by_hand]
     build
     xml = storage.xml("sitemap-post-00000.xml.gz")
 
@@ -332,8 +332,8 @@ class BuildTest < MapitaineTest
   def test_rails_locales_become_hreflang_codes_and_x_default_is_found_whatever_its_type
     create_post(1, languages: "en,pt_BR")
     strings = Class.new(PostSitemap) { locales { |post| post.languages.split(",") } }
-    Mapitaine.configuration.sources = [strings]
-    Mapitaine.configuration.x_default = :en
+    Maptain.configuration.sources = [strings]
+    Maptain.configuration.x_default = :en
     build
     xml = storage.xml("sitemap-post-00000.xml.gz")
 
@@ -344,7 +344,7 @@ class BuildTest < MapitaineTest
   def test_two_languages_sharing_a_url_list_it_once
     create_post(1, languages: "en,fr,de")
     shared = Class.new(PostSitemap) { url { |post, locale| post_url(post, locale: (locale == :de) ? :en : locale) } }
-    Mapitaine.configuration.sources = [shared]
+    Maptain.configuration.sources = [shared]
     built = build
     xml = storage.xml("sitemap-post-00000.xml.gz")
 
@@ -360,7 +360,7 @@ class BuildTest < MapitaineTest
     tokyo = Time.new(2026, 1, 15, 10, 0, 0, "+09:00")
     stamps = {1 => "2026-01-15T10:00+09:00", 2 => "2026-01-15T05:00:00Z", 3 => "2026-02-30T05:00:00Z"}
     zoned = Class.new(PostSitemap) { lastmod { |post| stamps.fetch(post.id) } }
-    Mapitaine.configuration.sources = [zoned, Class.new(PageSitemap) { lastmod { tokyo } }]
+    Maptain.configuration.sources = [zoned, Class.new(PageSitemap) { lastmod { tokyo } }]
     build
 
     assert_includes storage.xml("sitemap-post-00000.xml.gz"), "<lastmod>2026-01-15T01:00:00Z</lastmod>"
@@ -376,7 +376,7 @@ class BuildTest < MapitaineTest
       lastmod { |post| [post.updated_at, post.reviewed_at].compact.max }
       fingerprint "COALESCE(posts.reviewed_at, posts.updated_at)"
     end
-    Mapitaine.configuration.sources = [reviewed]
+    Maptain.configuration.sources = [reviewed]
     build
     Post.where(id: 1).update_all(reviewed_at: LONG_AGO + 7200)
     built = build
@@ -388,15 +388,15 @@ class BuildTest < MapitaineTest
   def test_a_build_is_instrumented
     create_post(1)
     events = []
-    subscriber = ActiveSupport::Notifications.subscribe(/mapitaine/) { |event| events << [event.name, event.payload] }
+    subscriber = ActiveSupport::Notifications.subscribe(/maptain/) { |event| events << [event.name, event.payload] }
     built = build
 
-    assert_equal ["shard.mapitaine", {source: "post", shard: "0"}], events.first
-    assert_equal ["build.mapitaine", {full: true, result: built}], events.last
+    assert_equal ["shard.maptain", {source: "post", shard: "0"}], events.first
+    assert_equal ["build.maptain", {full: true, result: built}], events.last
     events.clear
     built = build
 
-    assert_equal ["build.mapitaine", {full: false, result: built}], events.last
+    assert_equal ["build.maptain", {full: false, result: built}], events.last
   ensure
     ActiveSupport::Notifications.unsubscribe(subscriber)
   end

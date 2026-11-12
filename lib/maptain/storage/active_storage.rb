@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-module Mapitaine
+module Maptain
   module Storage
     # Sends the files through a service of config/storage.yml, without creating blobs: the sitemaps reuse the
     # credentials of the app, in a bucket of their own when the service names one.
