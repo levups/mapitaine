@@ -46,6 +46,7 @@ module Mapitaine
     private
 
     def build_in(directory, full:)
+      @configuration.validate!
       @directory = directory
       @previous = Manifest.read(@storage, manifest_name)
       @previous_file_by_name = @previous.files.to_h { |file| [file["name"], file] }
@@ -69,7 +70,7 @@ module Mapitaine
       @rendered = []
       # The first build has no "before": submitting a whole site at once is not what IndexNow is for. Nor is a
       # new configuration, which rewrites every file: then only the lastmods tell what changed.
-      @tracking = @submit && @configuration.index_now_key.present? && @previous.built_at.present?
+      @tracking = @submit && @configuration.index_now_key && @previous.built_at.present?
       @diffing = @tracking && @previous.digest == @configuration.digest
       @moved_sources = Set.new
 

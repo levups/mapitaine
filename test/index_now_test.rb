@@ -116,9 +116,9 @@ class IndexNowTest < MapitaineTest
     create_post(1)
     build
     Post.find(1).update!(title: "Edited", updated_at: Time.now)
-    self.network_error = Net::HTTPBadResponse
+    self.network_error = RuntimeError
 
-    assert_raises(Net::HTTPBadResponse) { build }
+    assert_raises(RuntimeError) { build }
     self.network_error = nil
 
     assert_equal 2, build.submitted
@@ -271,6 +271,16 @@ class IndexNowTest < MapitaineTest
 
     assert_equal [202, "Errno::ECONNRESET"], replies.map(&:status)
     assert_equal [true, false], replies.map(&:accepted?)
+  end
+
+  def test_a_reply_that_cannot_be_read_and_a_proxy_that_refuses_are_network_errors
+    errors = [Net::HTTPBadResponse.new("wrong status line"), Net::HTTPHeaderSyntaxError.new("wrong Content-Length format"),
+      Net::HTTPFatalError.new("503", nil)]
+    statuses = errors.map do |error|
+      Mapitaine::IndexNow.new(key: "key", transport: ->(*) { raise error }).submit("https://example.com", %w[https://example.com/1]).first.status
+    end
+
+    assert_equal %w[Net::HTTPBadResponse Net::HTTPHeaderSyntaxError Net::HTTPFatalError], statuses
   end
 
   def test_an_endpoint_that_cannot_be_reached_is_tried_once_however_many_batches_wait

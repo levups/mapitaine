@@ -23,6 +23,17 @@ class ConfigurationTest < MapitaineTest
     assert_raises(FrozenError) { Mapitaine.configuration.host_by_locale[:de] = "de.example.com" }
   end
 
+  def test_a_host_for_a_language_the_site_does_not_have_is_refused_when_a_build_starts
+    Mapitaine.configuration.host_by_locale = {"FR" => "https://fr.example.com", :de => "https://de.example.com"}
+
+    assert_equal 'host_by_locale["FR"] is not one of the locales: en, fr', assert_raises(Mapitaine::ConfigurationError) { build }.message
+    assert_raises(Mapitaine::ConfigurationError) { Mapitaine.check }
+    assert_empty storage.writes
+    Mapitaine.configuration.locales = %i[en FR de]
+
+    assert_empty build.warnings
+  end
+
   def test_the_key_location_is_a_path_every_host_serves
     Mapitaine.configuration.index_now_key_location = "/indexnow-key.txt"
 
@@ -30,6 +41,14 @@ class ConfigurationTest < MapitaineTest
     ["https://example.com/indexnow-key.txt", "//cdn.example.com/indexnow-key.txt", "indexnow-key.txt", "/", "/key.txt\nhttps://example.org"].each do |location|
       assert_raises(Mapitaine::ConfigurationError, location) { Mapitaine.configuration.index_now_key_location = location }
     end
+  end
+
+  def test_a_blank_key_and_a_blank_key_location_are_none
+    Mapitaine.configuration.index_now_key = " "
+    Mapitaine.configuration.index_now_key_location = ""
+
+    assert_nil Mapitaine.configuration.index_now_key
+    assert_nil Mapitaine.configuration.index_now_key_location
   end
 
   def test_a_build_without_a_host_says_so

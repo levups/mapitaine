@@ -41,6 +41,15 @@ module Mapitaine
       [host!, *host_by_locale.values].uniq
     end
 
+    # Checked when a build starts, not when host_by_locale is set: locales may be set after it.
+    def validate!
+      hreflangs = locales.map { |locale| Xml.hreflang(locale) }
+      unknown = host_by_locale.keys - hreflangs
+      return if unknown.empty?
+
+      raise ConfigurationError, "host_by_locale[#{unknown.first.inspect}] is not one of the locales: #{hreflangs.join(", ")}"
+    end
+
     # A blank key, as an environment variable left empty gives, is no key.
     def index_now_key=(key)
       @index_now_key = key.presence
@@ -48,11 +57,12 @@ module Mapitaine
 
     # A path, not a URL: IndexNow only reads a key on the host of the URLs it is given, so each host serves it.
     def index_now_key_location=(path)
-      unless path.nil? || path.to_s.match?(%r{\A/[^/\s]\S*\z})
+      path = path.to_s.presence
+      unless path.nil? || path.match?(%r{\A/[^/\s]\S*\z})
         raise ConfigurationError, "index_now_key_location must be a path such as \"/key.txt\", got #{path.inspect}"
       end
 
-      @index_now_key_location = path&.to_s
+      @index_now_key_location = path
     end
 
     def locales
