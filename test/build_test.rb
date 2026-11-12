@@ -163,7 +163,7 @@ class BuildTest < MapitaineTest
     build
     manifest = JSON.parse(storage.content_by_name["sitemap-manifest.json"])
     manifest["sources"]["post"]["0"]["files"][0]["lastmod"] = "2026-01-15T10:00:00+09:00"
-    storage.content_by_name["sitemap-manifest.json"] = manifest.to_json
+    storage.content_by_name["sitemap-manifest.json"] = JSON.generate(manifest)
     Post.where(id: 1).update_all(title: "Edited", updated_at: Time.utc(2026, 1, 15, 6))
     build
 
@@ -199,7 +199,7 @@ class BuildTest < MapitaineTest
     build
     manifest = JSON.parse(storage.content_by_name["sitemap-manifest.json"])
     manifest["rebuilt_at"] = (Time.now - 8 * 86_400).utc.iso8601
-    storage.content_by_name["sitemap-manifest.json"] = manifest.to_json
+    storage.content_by_name["sitemap-manifest.json"] = JSON.generate(manifest)
 
     built = build
 
@@ -207,7 +207,7 @@ class BuildTest < MapitaineTest
     assert_equal %w[sitemap-post-00000.xml.gz sitemap-page.xml.gz], built.written
     refute_predicate build, :full
     Mapitaine.configuration.rebuild_every = nil
-    storage.content_by_name["sitemap-manifest.json"] = manifest.to_json
+    storage.content_by_name["sitemap-manifest.json"] = JSON.generate(manifest)
 
     assert_empty build.written
   end
