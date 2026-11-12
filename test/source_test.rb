@@ -68,4 +68,23 @@ class SourceTest < MapitaineTest
     assert_equal({"en" => "https://example.com/posts/1", "fr" => "https://fr.example.com/posts/1"}, page.url_by_locale)
     assert_equal %w[https://example.com/images/1.jpg https://example.com/en/posts/1], page.images
   end
+
+  def test_the_url_block_runs_in_the_language_it_writes_when_i18n_has_it
+    I18n.available_locales = %i[en fr]
+    create_post(1, languages: "fr,de,en")
+    translated = Class.new(PostSitemap) do
+      url { |post, locale| post_url("#{post.id}-#{{en: "hello", fr: "bonjour"}.fetch(I18n.locale)}", locale:) }
+    end
+    failing = Class.new(PostSitemap) { url { |_post, locale| (locale == :en) ? raise("no URL") : "/#{locale}" } }
+
+    I18n.with_locale(:fr) do
+      assert_equal({"fr" => "https://example.com/fr/posts/1-bonjour", "de" => "https://example.com/de/posts/1-bonjour",
+        "en" => "https://example.com/en/posts/1-hello"}, translated.new(Mapitaine.configuration).each_page("0").first.url_by_locale)
+      assert_equal :fr, I18n.locale
+      assert_raises(RuntimeError) { failing.new(Mapitaine.configuration).each_page("0").first }
+      assert_equal :fr, I18n.locale
+    end
+  ensure
+    I18n.available_locales = nil
+  end
 end

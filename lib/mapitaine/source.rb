@@ -150,23 +150,26 @@ module Mapitaine
 
     def page_for(record)
       locales = definitions[:locales] ? Array(instance_exec(record, &definitions[:locales])) : configuration.locales
-      url_by_locale = locales.filter_map do |locale|
-        location = location_of(record, locale)
-        [Xml.hreflang(locale), location] if location
-      end
       given_lastmod = lastmod_of(record)
       lastmod = Xml.timestamp(given_lastmod)
-      Page.new(url_by_locale: url_by_locale.to_h, lastmod:, modified_at: lastmod && Xml.time(lastmod), images: images_of(record),
-        rejected_lastmod: (given_lastmod if lastmod.nil? && given_lastmod.present?))
+      Page.new(url_by_locale: url_by_locale_of(record, locales), lastmod:, modified_at: lastmod && Xml.time(lastmod),
+        images: images_of(record), rejected_lastmod: (given_lastmod if lastmod.nil? && given_lastmod.present?))
     end
 
-    # The url block runs with the host of its language: route helpers and paths get it without naming it.
-    def location_of(record, locale)
-      @language_host = configuration.host_for(locale)
-      location = instance_exec(record, locale, &definitions.fetch(:url))
-      absolute(location) if location
+    # The url block runs with the host of its language and with that language as I18n.locale: route helpers,
+    # paths and translated slugs get them without naming them. A language outside I18n.available_locales, which
+    # I18n may refuse, runs in the app's. Set per URL and restored per page: I18n.with_locale costs twice as much.
+    def url_by_locale_of(record, locales)
+      app_locale = I18n.locale
+      locales.filter_map do |locale|
+        @language_host = configuration.host_for(locale)
+        I18n.locale = I18n.locale_available?(locale) ? locale : app_locale
+        location = instance_exec(record, locale, &definitions.fetch(:url))
+        [Xml.hreflang(locale), absolute(location)] if location
+      end.to_h
     ensure
       @language_host = nil
+      I18n.locale = app_locale
     end
 
     def current_host

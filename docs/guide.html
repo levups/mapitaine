@@ -73,7 +73,7 @@
     <section id="sources" aria-labelledby="sources-title">
       <h2 id="sources-title">Sources</h2>
       <div class="prose">
-        <p>A source is a class in <code>app/sitemaps</code> that inherits from <code>Mapitaine::Source</code>, one per kind of page. Its blocks run in an object that has your route helpers, already set to <code>config.host</code>, or in the <code>url</code> block to the host of the language being written.</p>
+        <p>A source is a class in <code>app/sitemaps</code> that inherits from <code>Mapitaine::Source</code>, one per kind of page. Its blocks run in an object that has your route helpers, already set to <code>config.host</code>, or in the <code>url</code> block to the host of the language being written. That block also runs with its language as <code>I18n.locale</code>, so a slug read from a translated attribute comes out in the language of its page; a language that is not in <code>I18n.available_locales</code> runs in the app's.</p>
 <pre><code class="language-ruby"><span class="c1"># app/sitemaps/product_sitemap.rb</span>
 <span class="k">class</span> <span class="nc">ProductSitemap</span> <span class="o">&lt;</span> <span class="no">Mapitaine</span><span class="o">::</span><span class="no">Source</span>
   <span class="c1"># The records: an Active Record relation. Add the includes your other blocks need.</span>
