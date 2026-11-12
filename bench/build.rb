@@ -10,6 +10,7 @@ require "mapitaine"
 
 RECORD_COUNT = 30_000
 LOCALES = %i[ar bg cs da de el en es fi fr he hu it ja ko nb nl pl pt ro sk sv tr zh].freeze
+I18n.available_locales = LOCALES
 
 ActiveRecord::Base.establish_connection(adapter: "sqlite3", database: ":memory:")
 ActiveRecord::Schema.verbose = false

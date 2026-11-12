@@ -89,7 +89,9 @@ of every host names that one index.
 ## Sources
 
 A source is a class in `app/sitemaps`. Its blocks run in an object that has your route helpers, already set to
-`config.host`, or in the `url` block to the host of the language being written.
+`config.host`, or in the `url` block to the host of the language being written. That block also runs with its
+language as `I18n.locale`, so a slug read from a translated attribute comes out in the language of its page; a
+language that is not in `I18n.available_locales` runs in the app's.
 
 ```ruby
 class ProductSitemap < Mapitaine::Source
