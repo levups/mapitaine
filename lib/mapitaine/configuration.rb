@@ -6,8 +6,8 @@ module Mapitaine
     # a new url block, a file removed from the storage.
     DEFAULT_REBUILD_EVERY_SECONDS = 7 * 24 * 60 * 60
 
-    attr_accessor :filename, :index_now_key, :load_sources, :rebuild_every, :storage, :x_default
-    attr_reader :host, :host_by_locale, :index_now_key_location
+    attr_accessor :filename, :load_sources, :rebuild_every, :storage, :x_default
+    attr_reader :host, :host_by_locale, :index_now_key, :index_now_key_location
     attr_writer :locales, :sitemaps_url, :sources
 
     def initialize
@@ -39,6 +39,11 @@ module Mapitaine
 
     def hosts
       [host!, *host_by_locale.values].uniq
+    end
+
+    # A blank key, as an environment variable left empty gives, is no key.
+    def index_now_key=(key)
+      @index_now_key = key.presence
     end
 
     # A path, not a URL: IndexNow only reads a key on the host of the URLs it is given, so each host serves it.

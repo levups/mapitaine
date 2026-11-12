@@ -23,10 +23,6 @@ module Mapitaine
 
     # others: how many more times its source made the same mistake.
     Warning = Data.define(:source, :url, :message, :others) do
-      def initialize(others: 0, **)
-        super
-      end
-
       def to_s
         line = "#{source}: #{url} #{message}"
         others.zero? ? line : "#{line}, and #{others} more like it"
@@ -297,7 +293,7 @@ module Mapitaine
     end
 
     def warn(source, url, message)
-      @warnings << Warning.new(source: source.is_a?(Source) ? source.slug : source, url:, message:)
+      @warnings << Warning.new(source: source.is_a?(Source) ? source.slug : source, url:, message:, others: 0)
     end
 
     def on_host?(url)
@@ -318,7 +314,7 @@ module Mapitaine
     end
 
     def urls_to_submit
-      return [] unless @submit && @configuration.index_now_key.present?
+      return [] unless @submit && @configuration.index_now_key
 
       (@previous.unsubmitted + @changed_urls).uniq.select { |url| on_host?(url) }
     end
@@ -347,7 +343,7 @@ module Mapitaine
     # IndexNow reads the key at the root of a host unless told where it is, and only on that host.
     def publish_index_now_key
       key = @configuration.index_now_key
-      return if key.blank? || @configuration.index_now_key_location
+      return if key.nil? || @configuration.index_now_key_location
 
       if @configuration.sitemaps_url == @configuration.host!
         upload("#{key}.txt", key)

@@ -13,9 +13,9 @@ class IndexNowTest < MapitaineTest
     test = self
     @original_post = Net::HTTP.method(:post)
     replace_post do |uri, body, headers|
+      requests << [uri.to_s, JSON.parse(body), headers]
       raise test.network_error if test.network_error
 
-      requests << [uri.to_s, JSON.parse(body), headers]
       Response.new(code: test.response_code)
     end
   end
@@ -221,14 +221,10 @@ class IndexNowTest < MapitaineTest
     create_post(1)
     build
     Post.find(1).update!(title: "Edited", updated_at: Time.now)
-    attempts = 0
-    replace_post do |*|
-      attempts += 1
-      raise Errno::ETIMEDOUT
-    end
+    self.network_error = Errno::ETIMEDOUT
     built = build
 
-    assert_equal 1, attempts
+    assert_equal 1, @requests.size
     assert_equal %w[https://example.com https://fr.example.com].map { |host|
       "indexnow: https://api.indexnow.org/indexnow could not be reached (Errno::ETIMEDOUT) for 1 URLs of #{host}, sent again with the next build"
     }, built.warnings.map(&:to_s)
