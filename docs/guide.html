@@ -62,13 +62,18 @@
         <p>Then tell crawlers where the index is, in <code>public/robots.txt</code>:</p>
 <pre><code class="language-text">Sitemap: https://www.example.com/sitemap.xml</code></pre>
         <p>When the sitemaps are served from elsewhere (<code>config.sitemaps_url</code>, see <a href="#storage">Storage</a>), that line names the index there: a sitemap on another host, or in a folder of the site, may list the pages of the site only when its <code>robots.txt</code> points to it.</p>
+        <h3>One host per language</h3>
+        <p>When some languages are served from a host of their own, name those hosts:</p>
+<pre><code class="language-ruby"><span class="n">config</span><span class="p">.</span><span class="nf">host</span> <span class="o">=</span> <span class="s2">"https://www.example.com"</span>
+<span class="n">config</span><span class="p">.</span><span class="nf">host_by_locale</span> <span class="o">=</span> <span class="p">{</span><span class="ss">fr: </span><span class="s2">"https://fr.example.com"</span><span class="p">,</span> <span class="ss">de: </span><span class="s2">"https://de.example.com"</span><span class="p">}</span></code></pre>
+        <p>The other languages stay on <code>config.host</code>, and so does the index. For the same reason as above, the <code>robots.txt</code> of every host names that one index.</p>
       </div>
     </section>
 
     <section id="sources" aria-labelledby="sources-title">
       <h2 id="sources-title">Sources</h2>
       <div class="prose">
-        <p>A source is a class in <code>app/sitemaps</code> that inherits from <code>Mapitaine::Source</code>, one per kind of page. Its blocks run in an object that has your route helpers, already set to <code>config.host</code>.</p>
+        <p>A source is a class in <code>app/sitemaps</code> that inherits from <code>Mapitaine::Source</code>, one per kind of page. Its blocks run in an object that has your route helpers, already set to <code>config.host</code>, or in the <code>url</code> block to the host of the language being written.</p>
 <pre><code class="language-ruby"><span class="c1"># app/sitemaps/product_sitemap.rb</span>
 <span class="k">class</span> <span class="nc">ProductSitemap</span> <span class="o">&lt;</span> <span class="no">Mapitaine</span><span class="o">::</span><span class="no">Source</span>
   <span class="c1"># The records: an Active Record relation. Add the includes your other blocks need.</span>
@@ -180,8 +185,9 @@ bin/rails mapitaine:rebuild   <span class="c"># rewrite everything</span></code>
       <div class="prose">
         <p><a href="https://www.indexnow.org">IndexNow</a> tells Bing, Yandex, Seznam and Naver that a URL changed. Google does not take part. Choose a key of 8 to 128 characters among a-z, A-Z, 0-9 and -:</p>
 <pre><code class="language-ruby"><span class="n">config</span><span class="p">.</span><span class="nf">index_now_key</span> <span class="o">=</span> <span class="s2">"c1f0e2b4a6d84f3e9b7a5c3d1e0f2a4b"</span></code></pre>
-        <p>Each build then publishes the key as <code>&lt;key&gt;.txt</code> at the root of the site, and sends, from the files it rewrote, the URLs whose <code>lastmod</code> is later than the previous build, and those that appeared or went away whatever their <code>lastmod</code>. The first build sends nothing, nor does a new configuration beyond the pages whose <code>lastmod</code> moved, and only URLs on <code>config.host</code> are sent.</p>
-        <p>When the sitemaps are served from elsewhere (<code>config.sitemaps_url</code>), the key cannot follow them: IndexNow reads it on the site. Put <code>&lt;key&gt;.txt</code> in <code>public/</code> and set <code>config.index_now_key_location</code> to its URL; a build warns until you do.</p>
+        <p>Each build then publishes the key as <code>&lt;key&gt;.txt</code> at the root of the site, and sends, from the files it rewrote, the URLs whose <code>lastmod</code> is later than the previous build, and those that appeared or went away whatever their <code>lastmod</code>. The first build sends nothing, nor does a new configuration beyond the pages whose <code>lastmod</code> moved, and only URLs on the hosts of the site are sent.</p>
+        <p>When the sitemaps are served from elsewhere (<code>config.sitemaps_url</code>), the key cannot follow them: IndexNow reads it on the site. Put <code>&lt;key&gt;.txt</code> in <code>public/</code> and set <code>config.index_now_key_location</code> to its path, <code>"/&lt;key&gt;.txt"</code>; a build warns until you do.</p>
+        <p>With one host per language, every host must serve the key: IndexNow reads it on the host of the URLs it is given.</p>
         <p>A refusal or an endpoint that cannot be reached is a warning, never a failed build: the URLs it did not take are kept in the manifest and sent again with the next build.</p>
       </div>
     </section>
@@ -192,7 +198,7 @@ bin/rails mapitaine:rebuild   <span class="c"># rewrite everything</span></code>
 <pre><code class="language-sh">bin/rails mapitaine:check</code></pre>
         <p>It renders every sitemap without publishing or submitting anything, and fails on:</p>
         <ul>
-          <li>a URL outside <code>config.host</code>, listed twice in a source, or longer than 2,048 characters, and a page whose languages all share one URL;</li>
+          <li>a URL outside the hosts of the site, listed twice in a source, or longer than 2,048 characters, and a page whose languages all share one URL;</li>
           <li>an <code>hreflang</code> that is not a language code (<code>en</code>, <code>pt-BR</code>, <code>zh-Hant</code>, <code>es-419</code>);</li>
           <li>a <code>lastmod</code> in the future, or one that is not a W3C date, which is then left out;</li>
           <li>an index with more than the 50,000 files it may hold.</li>

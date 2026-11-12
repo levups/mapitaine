@@ -254,6 +254,19 @@ class BuildTest < MapitaineTest
     assert_equal %w[sitemap-post-00000.xml.gz sitemap-page.xml.gz], built.written
   end
 
+  def test_a_language_moved_to_a_host_of_its_own_rewrites_everything
+    create_post(1)
+    build
+    Mapitaine.configuration.host_by_locale = {fr: "https://fr.example.com"}
+    built = build
+
+    assert_equal %w[sitemap-post-00000.xml.gz sitemap-page.xml.gz], built.written
+    assert_includes storage.xml("sitemap-post-00000.xml.gz"), "<url><loc>https://fr.example.com/fr/posts/1</loc><lastmod>2026-01-01T12:00:00Z</lastmod>" \
+      '<xhtml:link rel="alternate" hreflang="en" href="https://example.com/en/posts/1"/>' \
+      '<xhtml:link rel="alternate" hreflang="fr" href="https://fr.example.com/fr/posts/1"/>' \
+      '<xhtml:link rel="alternate" hreflang="x-default" href="https://example.com/en/posts/1"/></url>'
+  end
+
   def test_an_unreadable_manifest_starts_over
     create_post(1)
     build

@@ -53,15 +53,15 @@ class IndexNowTest < MapitaineTest
     assert_equal 2, built.submitted
   end
 
-  def test_a_key_hosted_elsewhere_is_named_and_not_published
-    Mapitaine.configuration.index_now_key_location = "https://example.com/keys/indexnow.txt"
+  def test_a_key_the_site_already_serves_is_named_and_not_published
+    Mapitaine.configuration.index_now_key_location = "/indexnow-key.txt"
     create_post(1)
     build
     Post.find(1).update!(title: "Edited", updated_at: Time.now)
     build
 
     refute storage.content_by_name.key?("0123456789abcdef.txt")
-    assert_equal "https://example.com/keys/indexnow.txt", @requests.dig(0, 1, "keyLocation")
+    assert_equal "https://example.com/indexnow-key.txt", @requests.dig(0, 1, "keyLocation")
   end
 
   def test_a_refusal_is_reported_and_sent_again_with_the_next_build
@@ -73,7 +73,7 @@ class IndexNowTest < MapitaineTest
     refused = build
 
     assert_equal 0, refused.submitted
-    assert_equal ["indexnow: https://api.indexnow.org/indexnow answered 429 for 2 URLs, sent again with the next build"],
+    assert_equal ["indexnow: https://api.indexnow.org/indexnow answered 429 for 2 URLs of https://example.com, sent again with the next build"],
       refused.warnings.map(&:to_s)
     Post.find(2).update!(title: "Edited", updated_at: Time.now)
     self.response_code = "202"
@@ -162,6 +162,35 @@ class IndexNowTest < MapitaineTest
     assert_equal %w[https://example.com/en/posts/1], @requests.last.dig(1, "urlList")
   end
 
+  def test_each_host_is_sent_its_own_urls_and_where_it_serves_the_key
+    Mapitaine.configuration.host_by_locale = {fr: "https://fr.example.com"}
+    Mapitaine.configuration.index_now_key_location = "/indexnow-key.txt"
+    create_post(1)
+    build
+    Post.find(1).update!(title: "Edited", updated_at: Time.now)
+    built = build
+
+    assert_equal [
+      {"host" => "example.com", "key" => "0123456789abcdef", "keyLocation" => "https://example.com/indexnow-key.txt",
+       "urlList" => %w[https://example.com/en/posts/1]},
+      {"host" => "fr.example.com", "key" => "0123456789abcdef", "keyLocation" => "https://fr.example.com/indexnow-key.txt",
+       "urlList" => %w[https://fr.example.com/fr/posts/1]}
+    ], @requests.map { |request| request[1] }
+    assert_equal 2, built.submitted
+    assert_empty built.warnings
+  end
+
+  def test_a_host_whose_name_begins_like_another_is_sent_its_own_urls
+    Mapitaine.configuration.host_by_locale = {fr: "https://example.community"}
+    create_post(1)
+    build
+    Post.find(1).update!(title: "Edited", updated_at: Time.now)
+    build
+
+    assert_equal [["example.com", %w[https://example.com/en/posts/1]], ["example.community", %w[https://example.community/fr/posts/1]]],
+      @requests.map { |request| request[1].values_at("host", "urlList") }
+  end
+
   def test_a_key_the_site_does_not_serve_is_reported
     Mapitaine.configuration.sitemaps_url = "https://cdn.example.com/sitemaps"
     create_post(1)
@@ -169,11 +198,10 @@ class IndexNowTest < MapitaineTest
 
     refute storage.content_by_name.key?("0123456789abcdef.txt")
     assert_equal ["indexnow: https://example.com/0123456789abcdef.txt must hold the key: sitemaps go to https://cdn.example.com/sitemaps, " \
-      "so put 0123456789abcdef.txt in public/ and set index_now_key_location to this URL"], built.warnings.map(&:to_s)
-    Mapitaine.configuration.index_now_key_location = "https://cdn.example.com/sitemaps/0123456789abcdef.txt"
+      'so put 0123456789abcdef.txt in public/ and set index_now_key_location to "/0123456789abcdef.txt"'], built.warnings.map(&:to_s)
+    Mapitaine.configuration.index_now_key_location = "/0123456789abcdef.txt"
 
-    assert_equal ["indexnow: https://cdn.example.com/sitemaps/0123456789abcdef.txt is not on https://example.com: IndexNow only reads a key there"],
-      build.warnings.map(&:to_s)
+    assert_empty build.warnings
   end
 
   def test_an_unreachable_endpoint_is_a_warning_and_the_sitemaps_are_published
@@ -183,9 +211,29 @@ class IndexNowTest < MapitaineTest
     self.network_error = Errno::ECONNREFUSED
     built = build
 
-    assert_equal ["indexnow: https://api.indexnow.org/indexnow could not be reached (Errno::ECONNREFUSED) for 2 URLs, sent again with the next build"],
-      built.warnings.map(&:to_s)
+    assert_equal ["indexnow: https://api.indexnow.org/indexnow could not be reached (Errno::ECONNREFUSED) for 2 URLs of https://example.com, " \
+      "sent again with the next build"], built.warnings.map(&:to_s)
     assert_equal %w[sitemap-post-00000.xml.gz], built.written
+  end
+
+  def test_an_endpoint_that_cannot_be_reached_is_tried_once_however_many_hosts_wait
+    Mapitaine.configuration.host_by_locale = {fr: "https://fr.example.com"}
+    create_post(1)
+    build
+    Post.find(1).update!(title: "Edited", updated_at: Time.now)
+    attempts = 0
+    replace_post do |*|
+      attempts += 1
+      raise Errno::ETIMEDOUT
+    end
+    built = build
+
+    assert_equal 1, attempts
+    assert_equal %w[https://example.com https://fr.example.com].map { |host|
+      "indexnow: https://api.indexnow.org/indexnow could not be reached (Errno::ETIMEDOUT) for 1 URLs of #{host}, sent again with the next build"
+    }, built.warnings.map(&:to_s)
+    assert_equal %w[https://example.com/en/posts/1 https://fr.example.com/fr/posts/1],
+      JSON.parse(storage.content_by_name["sitemap-manifest.json"])["unsubmitted"]
   end
 
   def test_urls_go_in_batches_of_ten_thousand

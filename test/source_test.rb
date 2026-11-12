@@ -53,4 +53,19 @@ class SourceTest < MapitaineTest
 
     assert_equal "http://localhost:3000/en/posts/1", PostSitemap.new(Mapitaine.configuration).each_page("0").first.urls.first
   end
+
+  def test_route_helpers_and_paths_use_the_host_of_each_language
+    Mapitaine.configuration.host_by_locale = {fr: "https://fr.example.com"}
+    create_post(1)
+    by_path = Class.new(PostSitemap) do
+      url { |post, _locale| "/posts/#{post.id}" }
+      images { |post| ["/images/#{post.id}.jpg", post_url(post, locale: :en)] }
+    end
+    page = by_path.new(Mapitaine.configuration).each_page("0").first
+
+    assert_equal({"en" => "https://example.com/en/posts/1", "fr" => "https://fr.example.com/fr/posts/1"},
+      PostSitemap.new(Mapitaine.configuration).each_page("0").first.url_by_locale)
+    assert_equal({"en" => "https://example.com/posts/1", "fr" => "https://fr.example.com/posts/1"}, page.url_by_locale)
+    assert_equal %w[https://example.com/images/1.jpg https://example.com/en/posts/1], page.images
+  end
 end
