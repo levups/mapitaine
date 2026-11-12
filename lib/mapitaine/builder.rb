@@ -2,7 +2,8 @@
 
 module Mapitaine
   class Builder
-    Result = Data.define(:written, :kept, :deleted, :url_count, :submitted, :warnings) do
+    # full: whether this build rewrote everything, asked to or because rebuild_every had passed.
+    Result = Data.define(:full, :written, :kept, :deleted, :url_count, :submitted, :warnings) do
       def changed?
         written.any? || deleted.any?
       end
@@ -14,7 +15,7 @@ module Mapitaine
     # A language, then maybe a script and a region: en, pt-BR, zh-Hant-TW, es-419.
     HREFLANG = /\A[a-z]{2,3}(-[a-z]{4})?(-([a-z]{2}|\d{3}))?\z/i
 
-    Rendered = Data.define(:source, :shard, :fingerprint, :files, :changed_urls)
+    Rendered = Data.define(:source_slug, :shard, :fingerprint, :files, :changed_urls)
 
     Warning = Data.define(:source, :url, :message) do
       def to_s
@@ -31,6 +32,8 @@ module Mapitaine
     def build(full: false)
       ActiveSupport::Notifications.instrument("build.mapitaine", full:) do |payload|
         payload[:result] = Dir.mktmpdir("mapitaine") { |directory| build_in(directory, full:) }
+        payload[:full] = payload[:result].full
+        payload[:result]
       end
     end
 
@@ -61,7 +64,7 @@ module Mapitaine
       deleted.each { |name| @storage.delete(name) }
       upload(manifest_name, @manifest.to_json)
 
-      Result.new(written: @written, kept: @kept, deleted:, url_count: @manifest.files.sum { |file| file["urls"] },
+      Result.new(full: @full, written: @written, kept: @kept, deleted:, url_count: @manifest.files.sum { |file| file["urls"] },
         submitted: submit_changed_urls, warnings: @warnings)
     end
 
@@ -97,18 +100,20 @@ module Mapitaine
       fingerprint ||= writer.content_digest
       # Recorded now, published once every shard is rendered: the index keeps the order of the sources.
       @manifest.record(source.slug, shard, fingerprint:, files: [])
-      @rendered << Rendered.new(source: source.slug, shard:, fingerprint:, files: writer.files, changed_urls:)
+      @rendered << Rendered.new(source_slug: source.slug, shard:, fingerprint:, files: writer.files, changed_urls:)
     end
 
     def publish_rendered
       changed_names = @rendered.flat_map(&:files).reject { |file| same_as_before?(file) }.to_set(&:name)
       announce_new_files(changed_names)
       @rendered.each do |rendered|
-        changed = rendered.files.select { |file| changed_names.include?(file.name) }
-        rendered.files.each { |file| publish(file, changed.include?(file)) }
-        @manifest.record(rendered.source, rendered.shard, fingerprint: rendered.fingerprint,
-          files: rendered.files.map { |file| manifest_entry(file, changed.include?(file)) })
-        @changed_urls.concat(rendered.changed_urls) if changed.any?
+        entries = rendered.files.map do |file|
+          changed = changed_names.include?(file.name)
+          publish(file, changed)
+          manifest_entry(file, changed)
+        end
+        @manifest.record(rendered.source_slug, rendered.shard, fingerprint: rendered.fingerprint, files: entries)
+        @changed_urls.concat(rendered.changed_urls) if rendered.files.any? { |file| changed_names.include?(file.name) }
       end
     end
 
@@ -142,12 +147,20 @@ module Mapitaine
       previous_lastmod = @previous_file_by_name.dig(file.name, "lastmod")
       lastmod = if !changed
         previous_lastmod
-      elsif @previous_file_by_name.key?(file.name) && (file.lastmod.nil? || (previous_lastmod && file.lastmod <= previous_lastmod))
+      elsif @previous_file_by_name.key?(file.name) && !later?(file.lastmod, previous_lastmod)
         @manifest.built_at.getutc.iso8601
       else
         file.lastmod
       end
       {"name" => file.name, "urls" => file.url_count, "lastmod" => lastmod, "digest" => file.digest}
+    end
+
+    # A manifest written by an older version may hold a lastmod in another format: compare times, not text.
+    def later?(stamp, previous_stamp)
+      return false if stamp.nil?
+
+      previous_stamp = Xml.timestamp(previous_stamp)
+      previous_stamp.nil? || Xml.time(stamp) > Xml.time(previous_stamp)
     end
 
     def rebuild_due?(now)

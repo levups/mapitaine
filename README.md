@@ -149,8 +149,8 @@ bin/rails mapitaine:build     # rewrite the files whose records changed
 bin/rails mapitaine:rebuild   # rewrite everything
 ```
 
-`Mapitaine.build` does the same from Ruby and returns what it did (`written`, `kept`, `deleted`, `url_count`,
-`submitted`, `warnings`). Run it on a schedule, every night or every hour. With Solid Queue:
+`Mapitaine.build` does the same from Ruby and returns what it did (`full`, `written`, `kept`, `deleted`,
+`url_count`, `submitted`, `warnings`). Run it on a schedule, every night or every hour. With Solid Queue:
 
 ```yaml
 # config/recurring.yml
@@ -164,7 +164,7 @@ production:
 
 For each source, one query groups the records by range of ids and returns the count, the sum of the ids and the
 latest change of each. A range whose answer is the one the last build stored keeps its file. The others are
-rendered again, and a file that comes out the same is not uploaded. In the index, a file that changed takes the
+rendered again, and a file that comes out the same is not uploaded (a full build uploads every file). In the index, a file that changed takes the
 latest `lastmod` it holds, or the time of the build when a record left it, so that crawlers read it again.
 
 Some changes leave those numbers alone: `update_columns`, a change in another table that the `url`, `locales` or

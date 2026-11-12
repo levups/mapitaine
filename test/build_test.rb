@@ -120,6 +120,16 @@ class BuildTest < MapitaineTest
     assert_includes storage.xml("sitemap-post-00000.xml.gz"), "posts/3"
   end
 
+  def test_ids_too_large_for_a_sum_are_fingerprinted
+    create_post(9_000_000_000_000_000_001)
+    create_post(9_000_000_000_000_000_002)
+    build
+    Post.where(id: 9_000_000_000_000_000_002).delete_all
+    create_post(9_000_000_000_000_000_003)
+
+    assert_equal %w[sitemap-post-900000000000000000.xml.gz], build.written
+  end
+
   def test_a_new_shard_size_rewrites_the_source
     create_post(5)
     create_post(15)
@@ -146,6 +156,18 @@ class BuildTest < MapitaineTest
     stamp = storage.xml("sitemap.xml")[%r{sitemap-post-00000.xml.gz</loc><lastmod>([^<]+)}, 1]
 
     assert_operator Time.iso8601(stamp), :>, LONG_AGO
+  end
+
+  def test_a_file_dated_by_an_older_manifest_is_compared_by_time
+    create_post(1, updated_at: Time.utc(2026, 1, 15, 5))
+    build
+    manifest = JSON.parse(storage.content_by_name["sitemap-manifest.json"])
+    manifest["sources"]["post"]["0"]["files"][0]["lastmod"] = "2026-01-15T10:00:00+09:00"
+    storage.content_by_name["sitemap-manifest.json"] = manifest.to_json
+    Post.where(id: 1).update_all(title: "Edited", updated_at: Time.utc(2026, 1, 15, 6))
+    build
+
+    assert_includes storage.xml("sitemap.xml"), "sitemap-post-00000.xml.gz</loc><lastmod>2026-01-15T06:00:00Z</lastmod>"
   end
 
   def test_a_shard_rendered_again_without_a_visible_change_is_not_uploaded
@@ -179,8 +201,11 @@ class BuildTest < MapitaineTest
     manifest["rebuilt_at"] = (Time.now - 8 * 86_400).utc.iso8601
     storage.content_by_name["sitemap-manifest.json"] = manifest.to_json
 
-    assert_equal %w[sitemap-post-00000.xml.gz sitemap-page.xml.gz], build.written
-    assert_empty build.written
+    built = build
+
+    assert_predicate built, :full
+    assert_equal %w[sitemap-post-00000.xml.gz sitemap-page.xml.gz], built.written
+    refute_predicate build, :full
     Mapitaine.configuration.rebuild_every = nil
     storage.content_by_name["sitemap-manifest.json"] = manifest.to_json
 
@@ -354,6 +379,10 @@ class BuildTest < MapitaineTest
     built = build
 
     assert_equal ["shard.mapitaine", {source: "post", shard: "0"}], events.first
+    assert_equal ["build.mapitaine", {full: true, result: built}], events.last
+    events.clear
+    built = build
+
     assert_equal ["build.mapitaine", {full: false, result: built}], events.last
   ensure
     ActiveSupport::Notifications.unsubscribe(subscriber)

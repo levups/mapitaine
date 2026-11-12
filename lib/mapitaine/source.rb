@@ -103,9 +103,9 @@ module Mapitaine
       return {WHOLE => nil} unless relation?
 
       # The sum of the ids moves when a record leaves a range and another enters it; the shard size, when the
-      # ranges themselves move.
-      id_sum = Arel.sql("SUM(#{model.quoted_table_name}.#{model.quoted_primary_key})")
-      relation.reorder(nil).group(shard_sql).pluck(shard_sql, Arel.sql("COUNT(*)"), id_sum, fingerprint_sql)
+      # ranges themselves move. Summed as offsets within the range: SQLite's SUM overflows on large ids.
+      offset_sum = Arel.sql("SUM(#{model.quoted_table_name}.#{model.quoted_primary_key} % #{shard_size})")
+      relation.reorder(nil).group(shard_sql).pluck(shard_sql, Arel.sql("COUNT(*)"), offset_sum, fingerprint_sql)
         .to_h { |shard, count, sum, latest| [shard.to_i.to_s, "#{shard_size}/#{count}/#{sum.to_i}/#{precise(latest)}"] }
     end
 
