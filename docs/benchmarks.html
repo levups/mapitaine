@@ -4,10 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Mapitaine Benchmarks</title>
-<meta name="description" content="How long Mapitaine takes to build the sitemaps of 30,000 pages in 24 languages, and to build them again when little or nothing changed.">
+<meta name="description" content="How long Mapitaine takes to build the sitemaps of 30,000 pages in 24 languages, to build them again when little or nothing changed, and how long sitemap_generator takes for the same.">
 <link rel="canonical" href="https://levups.github.io/mapitaine/benchmarks.html">
 <meta property="og:title" content="Mapitaine Benchmarks">
-<meta property="og:description" content="How long Mapitaine takes to build the sitemaps of 30,000 pages in 24 languages, and to build them again when little or nothing changed.">
+<meta property="og:description" content="How long Mapitaine takes to build the sitemaps of 30,000 pages in 24 languages, to build them again when little or nothing changed, and how long sitemap_generator takes for the same.">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://levups.github.io/mapitaine/benchmarks.html">
 <meta property="og:site_name" content="Level UP Solutions">
@@ -32,23 +32,33 @@
   <main id="content">
     <header>
       <h1 class="page-title">Benchmarks</h1>
-      <p class="lede">A site of 30,000 pages in 24 languages, built in full, then again.</p>
+      <p class="lede">A site of 30,000 pages in 24 languages, built by Mapitaine and by sitemap_generator on the same machine: about 400 times faster when a few records changed, 15 times for a full build.</p>
     </header>
 
     <section aria-labelledby="results-title">
       <h2 id="results-title">Building 720,000 URLs</h2>
       <div class="prose">
-        <p><code>bench/build.rb</code> creates 30,000 records, builds their sitemap in 24 languages, builds it again with nothing new, then once more after three records changed. Every URL carries the 25 <code>hreflang</code> links of its page.</p>
+        <p><code>bench/build.rb</code> creates 30,000 records, builds their sitemap in 24 languages, builds it again with nothing new, then once more after three records changed. Every URL carries the 25 <code>hreflang</code> links of its page. It then builds the same sitemap, URLs, dates and links, with sitemap_generator, which has no build that skips what did not change.</p>
         <table>
-          <caption>Ruby 3.3.6 without YJIT, Rails 8.1.4, SQLite in memory, Linux x86_64, one run</caption>
-          <thead><tr><th scope="col">Build</th><th scope="col">Time</th><th scope="col">Files written</th></tr></thead>
+          <caption>Ruby 4.0.9 without YJIT, Rails 8.1.4, sitemap_generator 7.1.1, SQLite in memory, Apple M5 Max, median of 3 runs</caption>
+          <thead><tr><th scope="col">Build</th><th scope="col">Mapitaine</th><th scope="col">sitemap_generator</th><th scope="col">Faster</th><th scope="col">Files written</th></tr></thead>
           <tbody>
-            <tr><th scope="row">Everything, 720,000 URLs</th><td>31.9 s</td><td>55 (17 MiB gzipped)</td></tr>
-            <tr><th scope="row">Nothing new</th><td>0.01 s</td><td>0</td></tr>
-            <tr><th scope="row">3 records changed</th><td>1.0 s</td><td>2</td></tr>
+            <tr><th scope="row">Nothing new</th><td>0.004 s</td><td>150 s</td><td>(nothing to write)</td><td>0</td></tr>
+            <tr><th scope="row">3 records changed</th><td>0.35 s</td><td>150 s</td><td>430×</td><td>2</td></tr>
+            <tr><th scope="row">Everything, 720,000 URLs</th><td>9.9 s</td><td>150 s</td><td>15×</td><td>55 (16.5 MiB gzipped)</td></tr>
           </tbody>
         </table>
-        <p>The largest file is 39.8 MiB before compression, under the 50 MiB the protocol allows. The URLs here are built from a string: with route helpers and a real database, the full build takes longer, and the other two change little.</p>
+        <p>With YJIT, the same runs give 0.012 s, 0.32 s and 9.5 s for Mapitaine, and 115 s for sitemap_generator: 360 and 12 times faster instead of 430 and 15.</p>
+        <p>Seconds depend on the machine: the full build took 32 s on a Linux x86_64 server with Ruby 3.3.6, before the change to gzip, three times as long as here. Compare builds on the same machine rather than with this table: the ratios hold, the seconds do not.</p>
+        <p>The URLs here are built from a string: with route helpers and a real database, every build takes longer, and the gap narrows a little. On a copy of a production app's database, 560,000 URLs built on a laptop before the change to gzip, Mapitaine's full build took 35 s where sitemap_generator took 468 s, 13 times faster, and a build with three changed products 2.8 s, 170 times faster.</p>
+      </div>
+    </section>
+
+    <section aria-labelledby="full-title">
+      <h2 id="full-title">Why the full build takes seconds</h2>
+      <div class="prose">
+        <p>sitemap_generator lists every URL again at each run, so each of its builds is a full one. Mapitaine asks the database one question per source, and rewrites only the files whose records moved: that is the build a site runs every day, or after every deploy.</p>
+        <p>The full build runs once a week (<a href="guide.html#building"><code>rebuild_every</code></a>), to catch what the database numbers cannot see. Its size grows with the square of the languages: each of the 720,000 URLs lists the 25 links of its page, about 18 million links and 2 GiB of XML before compression. Mapitaine writes that XML as strings, without a document tree, and spends most of the time in gzip, at its best level: files that search engines download again and again are worth a few more seconds once a week. The largest file is 39.8 MiB before compression, under the 50 MiB the protocol allows.</p>
       </div>
     </section>
 
@@ -58,7 +68,7 @@
         <p>From a checkout of the gem, once with YJIT off and once with it on:</p>
 <pre><code class="language-sh">bundle <span class="nb">exec </span>ruby bench/build.rb
 bundle <span class="nb">exec </span>ruby <span class="nt">--yjit</span> bench/build.rb</code></pre>
-        <p>The numbers depend on the machine and the database: compare builds on the same one rather than with this table.</p>
+        <p>It takes a few minutes, nearly all of them in sitemap_generator.</p>
       </div>
     </section>
   </main>
