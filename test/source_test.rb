@@ -51,7 +51,7 @@ class SourceTest < MapitaineTest
     Mapitaine.configuration.host = "http://localhost:3000/"
     create_post(1)
 
-    assert_equal "http://localhost:3000/en/posts/1", PostSitemap.new(Mapitaine.configuration).each_page("0").first.urls.first
+    assert_equal "http://localhost:3000/en/posts/1", first_page.urls.first
   end
 
   def test_route_helpers_and_paths_use_the_host_of_each_language
@@ -61,10 +61,9 @@ class SourceTest < MapitaineTest
       url { |post, _locale| "/posts/#{post.id}" }
       images { |post| ["/images/#{post.id}.jpg", post_url(post, locale: :en)] }
     end
-    page = by_path.new(Mapitaine.configuration).each_page("0").first
+    page = first_page(by_path)
 
-    assert_equal({"en" => "https://example.com/en/posts/1", "fr" => "https://fr.example.com/fr/posts/1"},
-      PostSitemap.new(Mapitaine.configuration).each_page("0").first.url_by_locale)
+    assert_equal({"en" => "https://example.com/en/posts/1", "fr" => "https://fr.example.com/fr/posts/1"}, first_page.url_by_locale)
     assert_equal({"en" => "https://example.com/posts/1", "fr" => "https://fr.example.com/posts/1"}, page.url_by_locale)
     assert_equal %w[https://example.com/images/1.jpg https://example.com/en/posts/1], page.images
   end
@@ -79,12 +78,18 @@ class SourceTest < MapitaineTest
 
     I18n.with_locale(:fr) do
       assert_equal({"en" => "https://example.com/en/posts/1-hello", "de" => "https://example.com/de/posts/1-bonjour",
-        "fr" => "https://example.com/fr/posts/1-bonjour"}, translated.new(Mapitaine.configuration).each_page("0").first.url_by_locale)
+        "fr" => "https://example.com/fr/posts/1-bonjour"}, first_page(translated).url_by_locale)
       assert_equal :fr, I18n.locale
-      assert_raises(RuntimeError) { failing.new(Mapitaine.configuration).each_page("0").first }
+      assert_raises(RuntimeError) { first_page(failing) }
       assert_equal :fr, I18n.locale
     end
   ensure
     I18n.available_locales = nil
+  end
+
+  private
+
+  def first_page(source_class = PostSitemap)
+    source_class.new(Mapitaine.configuration).each_page("0").first
   end
 end
