@@ -8,7 +8,7 @@ module Mapitaine
     HEADERS = {"Content-Type" => "application/json; charset=utf-8"}.freeze
     # The last four: a proxy that refuses, and a reply that is not HTTP or not the gzip it claims to be.
     # Net::HTTPBadResponse is no ProtocolError.
-    NETWORK_ERRORS = [SystemCallError, SocketError, Timeout::Error, OpenSSL::SSL::SSLError, EOFError,
+    NETWORK_ERRORS = [SystemCallError, SocketError, Timeout::Error, OpenSSL::SSL::SSLError, IOError,
       Net::ProtocolError, Net::HTTPBadResponse, Net::HTTPHeaderSyntaxError, Zlib::Error].freeze
 
     def initialize(key:, key_path: nil, transport: Net::HTTP.method(:post))
