@@ -44,7 +44,7 @@ module Mapitaine
       suffix = @files.empty? ? "" : "-#{@files.size + 1}"
       @name = "#{@basename}#{suffix}.xml.gz"
       @path = File.join(@directory, @name)
-      @gzip = Zlib::GzipWriter.open(@path)
+      @gzip = Zlib::GzipWriter.open(@path, Zlib::BEST_COMPRESSION)
       @file_digest = Digest::SHA256.new
       @url_count = 0
       @bytes = Xml::URLSET_CLOSE.bytesize
