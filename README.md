@@ -84,7 +84,7 @@ config.host_by_locale = {fr: "https://fr.example.com", de: "https://de.example.c
 ```
 
 The other languages stay on `config.host`, and so does the index. For the same reason as above, the `robots.txt`
-of every host names that one index.
+of every host names that one index. Each key is one of `config.locales`: a build refuses any other.
 
 ## Sources
 
@@ -273,8 +273,8 @@ range it renders, with `source` and `shard`.
 
 ```ruby
 ActiveSupport::Notifications.subscribe("build.mapitaine") do |event|
-  built = event.payload[:result]
-  Rails.logger.info "Sitemap: #{built.written.size} files written in #{event.duration.round} ms"
+  built = event.payload[:result] # nil when the build raised
+  Rails.logger.info "Sitemap: #{built.written.size} files written in #{event.duration.round} ms" if built
 end
 ```
 

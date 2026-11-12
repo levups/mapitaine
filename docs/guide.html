@@ -66,7 +66,7 @@
         <p>When some languages are served from a host of their own, name those hosts:</p>
 <pre><code class="language-ruby"><span class="n">config</span><span class="p">.</span><span class="nf">host</span> <span class="o">=</span> <span class="s2">"https://www.example.com"</span>
 <span class="n">config</span><span class="p">.</span><span class="nf">host_by_locale</span> <span class="o">=</span> <span class="p">{</span><span class="ss">fr: </span><span class="s2">"https://fr.example.com"</span><span class="p">,</span> <span class="ss">de: </span><span class="s2">"https://de.example.com"</span><span class="p">}</span></code></pre>
-        <p>The other languages stay on <code>config.host</code>, and so does the index. For the same reason as above, the <code>robots.txt</code> of every host names that one index.</p>
+        <p>The other languages stay on <code>config.host</code>, and so does the index. For the same reason as above, the <code>robots.txt</code> of every host names that one index. Each key is one of <code>config.locales</code>: a build refuses any other.</p>
       </div>
     </section>
 

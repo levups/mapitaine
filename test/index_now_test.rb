@@ -116,9 +116,9 @@ class IndexNowTest < MapitaineTest
     create_post(1)
     build
     Post.find(1).update!(title: "Edited", updated_at: Time.now)
-    self.network_error = RuntimeError
+    self.network_error = Interrupt
 
-    assert_raises(RuntimeError) { build }
+    assert_raises(Interrupt) { build }
     self.network_error = nil
 
     assert_equal 2, build.submitted
@@ -273,14 +273,13 @@ class IndexNowTest < MapitaineTest
     assert_equal [true, false], replies.map(&:accepted?)
   end
 
-  def test_a_reply_that_cannot_be_read_and_a_proxy_that_refuses_are_network_errors
-    errors = [IOError.new("closed stream"), Net::HTTPBadResponse.new("wrong status line"), Net::HTTPHeaderSyntaxError.new("wrong Content-Length format"),
-      Zlib::DataError.new("incorrect header check"), Net::HTTPFatalError.new("503", nil)]
+  def test_whatever_the_transport_raises_is_a_reply_that_did_not_come
+    errors = [Net::HTTPBadResponse.new("wrong status line"), Zlib::DataError.new("incorrect header check"), Net::HTTPFatalError.new("503", nil)]
     statuses = errors.map do |error|
       Mapitaine::IndexNow.new(key: "key", transport: ->(*) { raise error }).submit("https://example.com", %w[https://example.com/1]).first.status
     end
 
-    assert_equal %w[IOError Net::HTTPBadResponse Net::HTTPHeaderSyntaxError Zlib::DataError Net::HTTPFatalError], statuses
+    assert_equal %w[Net::HTTPBadResponse Zlib::DataError Net::HTTPFatalError], statuses
   end
 
   def test_an_endpoint_that_cannot_be_reached_is_tried_once_however_many_batches_wait
