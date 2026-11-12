@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-module Mapitaine
+module Maptain
   # What the last build wrote: for each shard of each source, its fingerprint and its files. pending lists the
   # files a build started to publish before it could record them, so that the next one can remove them;
   # unsubmitted the URLs IndexNow did not take, for the next one to send again.

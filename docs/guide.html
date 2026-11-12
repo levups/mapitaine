@@ -3,13 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Mapitaine Guide</title>
-<meta name="description" content="Install Mapitaine, describe your pages and their languages, build the sitemaps on a schedule, store them through Active Storage and submit changes to IndexNow.">
-<link rel="canonical" href="https://levups.github.io/mapitaine/guide.html">
-<meta property="og:title" content="Mapitaine Guide">
-<meta property="og:description" content="Install Mapitaine, describe your pages and their languages, build the sitemaps on a schedule, store them through Active Storage and submit changes to IndexNow.">
+<title>Maptain Guide</title>
+<meta name="description" content="Install Maptain, describe your pages and their languages, build the sitemaps on a schedule, store them through Active Storage and submit changes to IndexNow.">
+<link rel="canonical" href="https://levups.github.io/maptain/guide.html">
+<meta property="og:title" content="Maptain Guide">
+<meta property="og:description" content="Install Maptain, describe your pages and their languages, build the sitemaps on a schedule, store them through Active Storage and submit changes to IndexNow.">
 <meta property="og:type" content="website">
-<meta property="og:url" content="https://levups.github.io/mapitaine/guide.html">
+<meta property="og:url" content="https://levups.github.io/maptain/guide.html">
 <meta property="og:site_name" content="Level UP Solutions">
 <meta name="twitter:card" content="summary">
 <meta name="theme-color" content="#6b3fa0">
@@ -23,10 +23,10 @@
 <a class="skip-link" href="#content">Skip to content</a>
 <div class="page">
   <nav class="site-nav" aria-label="Site">
-    <a class="brand" href="./">Mapitaine</a>
+    <a class="brand" href="./"><img class="mark" src="logo.svg" alt="">Maptain</a>
     <a href="guide.html" aria-current="page">Guide</a>
     <a href="benchmarks.html">Benchmarks</a>
-    <a href="https://github.com/levups/mapitaine">GitHub</a>
+    <a href="https://github.com/levups/maptain">GitHub</a>
   </nav>
 
   <main id="content">
@@ -55,12 +55,12 @@
           <li>
             <p>Add the gem. It needs Ruby 3.3 and Rails 8.0, or newer; its only runtime dependency is Active Support.</p>
 <pre><code class="language-ruby"><span class="c1"># Gemfile</span>
-<span class="n">gem</span> <span class="s2">"mapitaine"</span></code></pre>
+<span class="n">gem</span> <span class="s2">"maptain"</span></code></pre>
           </li>
           <li>
             <p>Name the host of the site:</p>
-<pre><code class="language-ruby"><span class="c1"># config/initializers/mapitaine.rb</span>
-<span class="no">Mapitaine</span><span class="p">.</span><span class="nf">configure</span> <span class="k">do</span> <span class="o">|</span><span class="n">config</span><span class="o">|</span>
+<pre><code class="language-ruby"><span class="c1"># config/initializers/maptain.rb</span>
+<span class="no">Maptain</span><span class="p">.</span><span class="nf">configure</span> <span class="k">do</span> <span class="o">|</span><span class="n">config</span><span class="o">|</span>
   <span class="n">config</span><span class="p">.</span><span class="nf">host</span> <span class="o">=</span> <span class="s2">"https://www.example.com"</span>
   <span class="n">config</span><span class="p">.</span><span class="nf">locales</span> <span class="o">=</span> <span class="sx">%i[en fr de]</span>   <span class="c1"># default: I18n.available_locales</span>
   <span class="n">config</span><span class="p">.</span><span class="nf">x_default</span> <span class="o">=</span> <span class="ss">:en</span>          <span class="c1"># the language of hreflang="x-default"; none when left out</span>
@@ -69,18 +69,18 @@
           <li>
             <p>Write one class per kind of page in <code>app/sitemaps</code>, as in <a href="#sources">Sources</a> below:</p>
 <pre><code class="language-ruby"><span class="c1"># app/sitemaps/product_sitemap.rb</span>
-<span class="k">class</span> <span class="nc">ProductSitemap</span> <span class="o">&lt;</span> <span class="no">Mapitaine</span><span class="o">::</span><span class="no">Source</span>
+<span class="k">class</span> <span class="nc">ProductSitemap</span> <span class="o">&lt;</span> <span class="no">Maptain</span><span class="o">::</span><span class="no">Source</span>
   <span class="n">scope</span> <span class="p">{</span> <span class="no">Product</span><span class="p">.</span><span class="nf">published</span> <span class="p">}</span>
   <span class="n">url</span> <span class="p">{</span> <span class="o">|</span><span class="n">product</span><span class="p">,</span> <span class="n">locale</span><span class="o">|</span> <span class="n">product_url</span><span class="p">(</span><span class="n">product</span><span class="p">,</span> <span class="n">locale</span><span class="p">:)</span> <span class="p">}</span>
 <span class="k">end</span></code></pre>
           </li>
           <li>
             <p>Look at what it would write, without writing it. It fails on a URL outside the site, a URL listed twice, a date in the future, and a few other <a href="#checking">mistakes</a>:</p>
-<pre><code class="language-sh">bin/rails mapitaine:check</code></pre>
+<pre><code class="language-sh">bin/rails maptain:check</code></pre>
           </li>
           <li>
             <p>Build, then tell crawlers where the index is, in <code>public/robots.txt</code>:</p>
-<pre><code class="language-sh">bin/rails mapitaine:build</code></pre>
+<pre><code class="language-sh">bin/rails maptain:build</code></pre>
 <pre><code class="language-text">Sitemap: https://www.example.com/sitemap.xml</code></pre>
           </li>
           <li>
@@ -88,7 +88,7 @@
 <pre><code class="language-yaml"><span class="c1"># config/recurring.yml</span>
 <span class="na">production</span><span class="pi">:</span>
   <span class="na">sitemap</span><span class="pi">:</span>
-    <span class="na">command</span><span class="pi">:</span> <span class="s2">"</span><span class="s">Mapitaine.build"</span>
+    <span class="na">command</span><span class="pi">:</span> <span class="s2">"</span><span class="s">Maptain.build"</span>
     <span class="na">schedule</span><span class="pi">:</span> <span class="s">every hour</span></code></pre>
           </li>
         </ol>
@@ -99,9 +99,9 @@
     <section id="sources" aria-labelledby="sources-title">
       <h2 id="sources-title">Sources</h2>
       <div class="prose">
-        <p>A source is a class in <code>app/sitemaps</code> that inherits from <code>Mapitaine::Source</code>, one per kind of page. Its blocks run in an object that has your route helpers, already set to <code>config.host</code>, or in the <code>url</code> block to the host of the language being written. That block also runs with its language as <code>I18n.locale</code>, so a slug read from a translated attribute comes out in the language of its page; a language that is not in <code>I18n.available_locales</code> runs in the app's.</p>
+        <p>A source is a class in <code>app/sitemaps</code> that inherits from <code>Maptain::Source</code>, one per kind of page. Its blocks run in an object that has your route helpers, already set to <code>config.host</code>, or in the <code>url</code> block to the host of the language being written. That block also runs with its language as <code>I18n.locale</code>, so a slug read from a translated attribute comes out in the language of its page; a language that is not in <code>I18n.available_locales</code> runs in the app's.</p>
 <pre><code class="language-ruby"><span class="c1"># app/sitemaps/product_sitemap.rb</span>
-<span class="k">class</span> <span class="nc">ProductSitemap</span> <span class="o">&lt;</span> <span class="no">Mapitaine</span><span class="o">::</span><span class="no">Source</span>
+<span class="k">class</span> <span class="nc">ProductSitemap</span> <span class="o">&lt;</span> <span class="no">Maptain</span><span class="o">::</span><span class="no">Source</span>
   <span class="c1"># The records: an Active Record relation. Add the includes your other blocks need.</span>
   <span class="n">scope</span> <span class="p">{</span> <span class="no">Product</span><span class="p">.</span><span class="nf">published</span><span class="p">.</span><span class="nf">includes</span><span class="p">(</span><span class="ss">:photos</span><span class="p">)</span> <span class="p">}</span>
 
@@ -114,7 +114,7 @@
         <p>The model needs an integer primary key: files are cut by ranges of ids.</p>
         <h3>Pages that are not records</h3>
         <p>The scope can be any list. Such a source is one file, rendered at each build and published when it differs from the last one.</p>
-<pre><code class="language-ruby"><span class="k">class</span> <span class="nc">PageSitemap</span> <span class="o">&lt;</span> <span class="no">Mapitaine</span><span class="o">::</span><span class="no">Source</span>
+<pre><code class="language-ruby"><span class="k">class</span> <span class="nc">PageSitemap</span> <span class="o">&lt;</span> <span class="no">Maptain</span><span class="o">::</span><span class="no">Source</span>
   <span class="n">scope</span> <span class="p">{</span> <span class="sx">%i[root about contact]</span> <span class="p">}</span>
   <span class="n">url</span> <span class="p">{</span> <span class="o">|</span><span class="n">page</span><span class="p">,</span> <span class="n">locale</span><span class="o">|</span> <span class="n">public_send</span><span class="p">(</span><span class="ss">:"</span><span class="si">#{</span><span class="n">page</span><span class="si">}</span><span class="ss">_url"</span><span class="p">,</span> <span class="n">locale</span><span class="p">:)</span> <span class="p">}</span>
 <span class="k">end</span></code></pre>
@@ -125,7 +125,7 @@
       <h2 id="languages-title">Languages</h2>
       <div class="prose">
         <p>Every record gets one URL per language of <code>config.locales</code>. When records are not all translated, <code>locales</code> names the languages each one exists in:</p>
-<pre><code class="language-ruby"><span class="k">class</span> <span class="nc">ProductSitemap</span> <span class="o">&lt;</span> <span class="no">Mapitaine</span><span class="o">::</span><span class="no">Source</span>
+<pre><code class="language-ruby"><span class="k">class</span> <span class="nc">ProductSitemap</span> <span class="o">&lt;</span> <span class="no">Maptain</span><span class="o">::</span><span class="no">Source</span>
   <span class="n">scope</span> <span class="p">{</span> <span class="no">Product</span><span class="p">.</span><span class="nf">published</span> <span class="p">}</span>
   <span class="n">url</span> <span class="p">{</span> <span class="o">|</span><span class="n">product</span><span class="p">,</span> <span class="n">locale</span><span class="o">|</span> <span class="n">product_url</span><span class="p">(</span><span class="n">product</span><span class="p">,</span> <span class="n">locale</span><span class="p">:)</span> <span class="p">}</span>
   <span class="n">locales</span> <span class="p">{</span> <span class="o">|</span><span class="n">product</span><span class="o">|</span> <span class="n">product</span><span class="p">.</span><span class="nf">translated_locales</span> <span class="p">}</span>
@@ -148,7 +148,7 @@
         <p>A column that moves when the content does not, such as an <code>updated_at</code> touched by a view counter, makes every build rewrite files for nothing and tells search engines a date that is not true. Give such a model a column for content changes.</p>
         <h3>When the date depends on more than one column</h3>
         <p><code>lastmod</code> also takes a block. The build then needs to know what to watch in the database, as an SQL expression:</p>
-<pre><code class="language-ruby"><span class="k">class</span> <span class="nc">ProductSitemap</span> <span class="o">&lt;</span> <span class="no">Mapitaine</span><span class="o">::</span><span class="no">Source</span>
+<pre><code class="language-ruby"><span class="k">class</span> <span class="nc">ProductSitemap</span> <span class="o">&lt;</span> <span class="no">Maptain</span><span class="o">::</span><span class="no">Source</span>
   <span class="n">scope</span> <span class="p">{</span> <span class="no">Product</span><span class="p">.</span><span class="nf">published</span> <span class="p">}</span>
   <span class="n">url</span> <span class="p">{</span> <span class="o">|</span><span class="n">product</span><span class="p">,</span> <span class="n">locale</span><span class="o">|</span> <span class="n">product_url</span><span class="p">(</span><span class="n">product</span><span class="p">,</span> <span class="n">locale</span><span class="p">:)</span> <span class="p">}</span>
   <span class="n">lastmod</span> <span class="p">{</span> <span class="o">|</span><span class="n">product</span><span class="o">|</span> <span class="p">[</span><span class="n">product</span><span class="p">.</span><span class="nf">updated_at</span><span class="p">,</span> <span class="n">product</span><span class="p">.</span><span class="nf">reviewed_at</span><span class="p">].</span><span class="nf">compact</span><span class="p">.</span><span class="nf">max</span> <span class="p">}</span>
@@ -169,21 +169,21 @@
     <section id="building" aria-labelledby="building-title">
       <h2 id="building-title">Building</h2>
       <div class="prose">
-<pre><code class="language-sh">bin/rails mapitaine:build     <span class="c"># rewrite the files whose records changed</span>
-bin/rails mapitaine:rebuild   <span class="c"># rewrite everything</span></code></pre>
-        <p><code>Mapitaine.build</code> does the same from Ruby and returns what it did: <code>full</code>, <code>written</code>, <code>kept</code>, <code>deleted</code>, <code>url_count</code>, <code>submitted</code> and <code>warnings</code>. Run it on a schedule, every night or every hour. With Solid Queue:</p>
+<pre><code class="language-sh">bin/rails maptain:build     <span class="c"># rewrite the files whose records changed</span>
+bin/rails maptain:rebuild   <span class="c"># rewrite everything</span></code></pre>
+        <p><code>Maptain.build</code> does the same from Ruby and returns what it did: <code>full</code>, <code>written</code>, <code>kept</code>, <code>deleted</code>, <code>url_count</code>, <code>submitted</code> and <code>warnings</code>. Run it on a schedule, every night or every hour. With Solid Queue:</p>
 <pre><code class="language-yaml"><span class="c1"># config/recurring.yml</span>
 <span class="na">production</span><span class="pi">:</span>
   <span class="na">sitemap</span><span class="pi">:</span>
-    <span class="na">command</span><span class="pi">:</span> <span class="s2">"</span><span class="s">Mapitaine.build"</span>
+    <span class="na">command</span><span class="pi">:</span> <span class="s2">"</span><span class="s">Maptain.build"</span>
     <span class="na">schedule</span><span class="pi">:</span> <span class="s">every hour</span></code></pre>
         <h3>How a build decides</h3>
         <p>For each source, one query groups the records by range of ids and returns the count, the sum of the ids and the latest change of each. A range whose answer is the one the last build stored keeps its file. The others are rendered again, and a file that comes out the same is not uploaded (a full build uploads every file). Nothing hooks into your models, so <code>update_all</code>, imports and deletions are seen too.</p>
         <p>In the index, a file that changed takes the latest <code>lastmod</code> it holds, or the time of the build when a record left it, so that crawlers read it again.</p>
         <p>Some changes leave those numbers alone: <code>update_columns</code>, a change in another table that the <code>url</code>, <code>locales</code> or <code>images</code> blocks read, a new <code>url</code> block, a file someone removed from the storage. Name the other table in <code>fingerprint</code>, or <code>touch</code> the record from it. For the rest, a full build comes once a week by itself:</p>
-<pre><code class="language-ruby"><span class="n">config</span><span class="p">.</span><span class="nf">rebuild_every</span> <span class="o">=</span> <span class="mi">1</span><span class="p">.</span><span class="nf">day</span>   <span class="c1"># default: a week; nil leaves it to mapitaine:rebuild</span></code></pre>
-        <p>After deploying a change to a <code>url</code> block, run <code>mapitaine:rebuild</code> rather than wait.</p>
-        <p>A build notes the files it is about to add in <code>sitemap-manifest.json</code>, its memory of what each file held, then writes the sitemap files, then the index, then removes the files no range fills any more, then writes the manifest again. A build that fails midway is repaired by the next one. Changing the host, the languages, the size of a range or the version of Mapitaine rewrites everything it moves once.</p>
+<pre><code class="language-ruby"><span class="n">config</span><span class="p">.</span><span class="nf">rebuild_every</span> <span class="o">=</span> <span class="mi">1</span><span class="p">.</span><span class="nf">day</span>   <span class="c1"># default: a week; nil leaves it to maptain:rebuild</span></code></pre>
+        <p>After deploying a change to a <code>url</code> block, run <code>maptain:rebuild</code> rather than wait.</p>
+        <p>A build notes the files it is about to add in <code>sitemap-manifest.json</code>, its memory of what each file held, then writes the sitemap files, then the index, then removes the files no range fills any more, then writes the manifest again. A build that fails midway is repaired by the next one. Changing the host, the languages, the size of a range or the version of Maptain rewrites everything it moves once.</p>
       </div>
     </section>
 
@@ -200,8 +200,8 @@ bin/rails mapitaine:rebuild   <span class="c"># rewrite everything</span></code>
   <span class="na">public</span><span class="pi">:</span> <span class="kc">true</span>
   <span class="na">access_key_id</span><span class="pi">:</span> <span class="s">&lt;%= Rails.application.credentials.dig(:aws, :access_key_id) %&gt;</span>
   <span class="na">secret_access_key</span><span class="pi">:</span> <span class="s">&lt;%= Rails.application.credentials.dig(:aws, :secret_access_key) %&gt;</span></code></pre>
-<pre><code class="language-ruby"><span class="no">Mapitaine</span><span class="p">.</span><span class="nf">configure</span> <span class="k">do</span> <span class="o">|</span><span class="n">config</span><span class="o">|</span>
-  <span class="n">config</span><span class="p">.</span><span class="nf">storage</span> <span class="o">=</span> <span class="no">Mapitaine</span><span class="o">::</span><span class="no">Storage</span><span class="o">::</span><span class="no">ActiveStorage</span><span class="p">.</span><span class="nf">new</span><span class="p">(</span><span class="ss">:sitemaps</span><span class="p">,</span> <span class="ss">prefix: </span><span class="s2">"sitemaps"</span><span class="p">)</span>
+<pre><code class="language-ruby"><span class="no">Maptain</span><span class="p">.</span><span class="nf">configure</span> <span class="k">do</span> <span class="o">|</span><span class="n">config</span><span class="o">|</span>
+  <span class="n">config</span><span class="p">.</span><span class="nf">storage</span> <span class="o">=</span> <span class="no">Maptain</span><span class="o">::</span><span class="no">Storage</span><span class="o">::</span><span class="no">ActiveStorage</span><span class="p">.</span><span class="nf">new</span><span class="p">(</span><span class="ss">:sitemaps</span><span class="p">,</span> <span class="ss">prefix: </span><span class="s2">"sitemaps"</span><span class="p">)</span>
   <span class="n">config</span><span class="p">.</span><span class="nf">sitemaps_url</span> <span class="o">=</span> <span class="s2">"https://cdn.example.com/sitemaps"</span>   <span class="c1"># where those files are served from</span>
 <span class="k">end</span></code></pre>
         <p>No blob is created: the files keep their names as keys, and nothing is written to the database. Any service works that serves a key at a stable URL: S3, Google Cloud Storage, Azure, a mirror of them. The Disk service does not, it scatters keys in subfolders: keep the default for files on disk.</p>
@@ -226,7 +226,7 @@ bin/rails mapitaine:rebuild   <span class="c"># rewrite everything</span></code>
     <section id="checking" aria-labelledby="checking-title">
       <h2 id="checking-title">Checking</h2>
       <div class="prose">
-<pre><code class="language-sh">bin/rails mapitaine:check</code></pre>
+<pre><code class="language-sh">bin/rails maptain:check</code></pre>
         <p>It renders every sitemap without publishing or submitting anything, and fails on:</p>
         <ul>
           <li>a URL outside the hosts of the site, listed twice in a source, or longer than 2,048 characters, and a page whose languages all share one URL;</li>
@@ -235,15 +235,15 @@ bin/rails mapitaine:rebuild   <span class="c"># rewrite everything</span></code>
           <li>an index with more than the 50,000 files it may hold.</li>
         </ul>
         <p>When many URLs of a source make the same mistake, one line names the first and counts the others. A build reports the same in <code>warnings</code>, for the files it rewrites.</p>
-        <p>Mapitaine never requests a page of the site. Whether a URL answers 200 or carries a <code>noindex</code> is what Search Console reports, from the visits crawlers make anyway.</p>
+        <p>Maptain never requests a page of the site. Whether a URL answers 200 or carries a <code>noindex</code> is what Search Console reports, from the visits crawlers make anyway.</p>
       </div>
     </section>
 
     <section id="instrumentation" aria-labelledby="instrumentation-title">
       <h2 id="instrumentation-title">Instrumentation</h2>
       <div class="prose">
-        <p><code>build.mapitaine</code> wraps a build, with <code>full</code> and <code>result</code> in its payload. <code>shard.mapitaine</code> wraps each range it renders, with <code>source</code> and <code>shard</code>.</p>
-<pre><code class="language-ruby"><span class="no">ActiveSupport</span><span class="o">::</span><span class="no">Notifications</span><span class="p">.</span><span class="nf">subscribe</span><span class="p">(</span><span class="s2">"build.mapitaine"</span><span class="p">)</span> <span class="k">do</span> <span class="o">|</span><span class="n">event</span><span class="o">|</span>
+        <p><code>build.maptain</code> wraps a build, with <code>full</code> and <code>result</code> in its payload. <code>shard.maptain</code> wraps each range it renders, with <code>source</code> and <code>shard</code>.</p>
+<pre><code class="language-ruby"><span class="no">ActiveSupport</span><span class="o">::</span><span class="no">Notifications</span><span class="p">.</span><span class="nf">subscribe</span><span class="p">(</span><span class="s2">"build.maptain"</span><span class="p">)</span> <span class="k">do</span> <span class="o">|</span><span class="n">event</span><span class="o">|</span>
   <span class="n">built</span> <span class="o">=</span> <span class="n">event</span><span class="p">.</span><span class="nf">payload</span><span class="p">[</span><span class="ss">:result</span><span class="p">]</span>
   <span class="no">Rails</span><span class="p">.</span><span class="nf">logger</span><span class="p">.</span><span class="nf">info</span> <span class="s2">"Sitemap: </span><span class="si">#{</span><span class="n">built</span><span class="p">.</span><span class="nf">written</span><span class="p">.</span><span class="nf">size</span><span class="si">}</span><span class="s2"> files written in </span><span class="si">#{</span><span class="n">event</span><span class="p">.</span><span class="nf">duration</span><span class="p">.</span><span class="nf">round</span><span class="si">}</span><span class="s2"> ms"</span>
 <span class="k">end</span></code></pre>
@@ -254,19 +254,19 @@ bin/rails mapitaine:rebuild   <span class="c"># rewrite everything</span></code>
       <h2 id="migrating-title">Coming from sitemap_generator</h2>
       <div class="prose">
         <table>
-          <thead><tr><th scope="col">sitemap_generator</th><th scope="col">Mapitaine</th></tr></thead>
+          <thead><tr><th scope="col">sitemap_generator</th><th scope="col">Maptain</th></tr></thead>
           <tbody>
-            <tr><td><code>config/sitemap.rb</code>, one <code>add</code> per URL</td><td>One <code>Mapitaine::Source</code> per kind of page, in <code>app/sitemaps</code></td></tr>
+            <tr><td><code>config/sitemap.rb</code>, one <code>add</code> per URL</td><td>One <code>Maptain::Source</code> per kind of page, in <code>app/sitemaps</code></td></tr>
             <tr><td><code>alternates:</code> written by hand for each URL</td><td><code>hreflang</code> links written from <code>config.locales</code>, or a source's <code>locales</code></td></tr>
             <tr><td><code>default_host</code></td><td><code>config.host</code>, and <code>config.host_by_locale</code> for one host per language</td></tr>
-            <tr><td><code>rake sitemap:refresh</code></td><td><code>bin/rails mapitaine:build</code>, which rewrites only what changed</td></tr>
+            <tr><td><code>rake sitemap:refresh</code></td><td><code>bin/rails maptain:build</code>, which rewrites only what changed</td></tr>
             <tr><td><code>lastmod:</code></td><td><code>updated_at</code> by default, or <code>lastmod :column</code></td></tr>
             <tr><td><code>priority:</code>, <code>changefreq:</code></td><td>Left out: Google ignores them</td></tr>
             <tr><td>Pinging search engines</td><td>IndexNow, with <code>config.index_now_key</code></td></tr>
             <tr><td><code>sitemaps_host</code>, adapters</td><td><code>config.sitemaps_url</code>, and any Active Storage service</td></tr>
           </tbody>
         </table>
-        <p>sitemap_generator names its index <code>sitemap.xml.gz</code>, Mapitaine <code>sitemap.xml</code>: change the <code>Sitemap:</code> line of <code>robots.txt</code>, and delete the old files once the first build has written the new ones.</p>
+        <p>sitemap_generator names its index <code>sitemap.xml.gz</code>, Maptain <code>sitemap.xml</code>: change the <code>Sitemap:</code> line of <code>robots.txt</code>, and delete the old files once the first build has written the new ones.</p>
       </div>
     </section>
 
@@ -280,10 +280,10 @@ bin/rails mapitaine:rebuild   <span class="c"># rewrite everything</span></code>
         <li><a href="https://levups.github.io/agentry/">Agentry</a></li>
         <li><a href="https://levups.github.io/gamba/">Gamba</a></li>
         <li><a href="https://levups.github.io/crumbly/">Crumbly</a></li>
-        <li><a href="https://levups.github.io/mapitaine/" aria-current="page">Mapitaine</a></li>
+        <li><a href="https://levups.github.io/maptain/" aria-current="page">Maptain</a></li>
       </ul>
     </nav>
-    <p><a href="https://github.com/levups/mapitaine">Source on GitHub</a></p>
+    <p><a href="https://github.com/levups/maptain">Source on GitHub</a></p>
   </footer>
 </div>
 </body>

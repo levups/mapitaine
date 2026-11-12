@@ -14,22 +14,22 @@ require "tmpdir"
 require "uri"
 require "zlib"
 
-require_relative "mapitaine/version"
-require_relative "mapitaine/errors"
-require_relative "mapitaine/storage/local"
-require_relative "mapitaine/storage/active_storage"
-require_relative "mapitaine/storage/null"
-require_relative "mapitaine/configuration"
-require_relative "mapitaine/page"
-require_relative "mapitaine/xml"
-require_relative "mapitaine/source"
-require_relative "mapitaine/shard_writer"
-require_relative "mapitaine/manifest"
-require_relative "mapitaine/index_now"
-require_relative "mapitaine/builder"
-require_relative "mapitaine/railtie" if defined?(Rails::Railtie)
+require_relative "maptain/version"
+require_relative "maptain/errors"
+require_relative "maptain/storage/local"
+require_relative "maptain/storage/active_storage"
+require_relative "maptain/storage/null"
+require_relative "maptain/configuration"
+require_relative "maptain/page"
+require_relative "maptain/xml"
+require_relative "maptain/source"
+require_relative "maptain/shard_writer"
+require_relative "maptain/manifest"
+require_relative "maptain/index_now"
+require_relative "maptain/builder"
+require_relative "maptain/railtie" if defined?(Rails::Railtie)
 
-module Mapitaine
+module Maptain
   class << self
     def configuration
       @configuration ||= Configuration.new

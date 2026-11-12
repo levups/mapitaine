@@ -3,16 +3,16 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Mapitaine: Rails sitemaps that rewrite only what changed</title>
-<meta name="description" content="Mapitaine writes the XML sitemaps of a Rails site from its records, with the hreflang links of every language, and each build rewrites only the files whose records changed.">
-<meta property="og:title" content="Mapitaine: Rails sitemaps that rewrite only what changed">
+<title>Maptain: Rails sitemaps that rewrite only what changed</title>
+<meta name="description" content="Maptain writes the XML sitemaps of a Rails site from its records, with the hreflang links of every language, and each build rewrites only the files whose records changed.">
+<meta property="og:title" content="Maptain: Rails sitemaps that rewrite only what changed">
 <meta property="og:description" content="XML sitemaps for Rails, written from your records. Each build asks the database what moved and rewrites only those files, hreflang links included.">
 <meta property="og:type" content="website">
-<link rel="canonical" href="https://levups.github.io/mapitaine/">
-<meta property="og:url" content="https://levups.github.io/mapitaine/">
+<link rel="canonical" href="https://levups.github.io/maptain/">
+<meta property="og:url" content="https://levups.github.io/maptain/">
 <meta property="og:site_name" content="Level UP Solutions">
 <meta name="twitter:card" content="summary">
-<script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareSourceCode","name":"Mapitaine","description":"XML sitemaps for Rails sites in several languages, rebuilt only where the content changed","url":"https://levups.github.io/mapitaine/","codeRepository":"https://github.com/levups/mapitaine","programmingLanguage":"Ruby","runtimePlatform":"Ruby 3.3 or later","license":"https://spdx.org/licenses/MIT.html","author":{"@type":"Organization","name":"Level UP Solutions","url":"https://levups.com"}}</script>
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareSourceCode","name":"Maptain","description":"XML sitemaps for Rails sites in several languages, rebuilt only where the content changed","url":"https://levups.github.io/maptain/","codeRepository":"https://github.com/levups/maptain","programmingLanguage":"Ruby","runtimePlatform":"Ruby 3.3 or later","license":"https://spdx.org/licenses/MIT.html","author":{"@type":"Organization","name":"Level UP Solutions","url":"https://levups.com"}}</script>
 <meta name="theme-color" content="#6b3fa0">
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -24,19 +24,19 @@
 <a class="skip-link" href="#content">Skip to content</a>
 <div class="page">
   <nav class="site-nav" aria-label="Site">
-    <a class="brand" href="./" aria-current="page">Mapitaine</a>
+    <a class="brand" href="./" aria-current="page">Maptain</a>
     <a href="guide.html">Guide</a>
     <a href="benchmarks.html">Benchmarks</a>
-    <a href="https://github.com/levups/mapitaine">GitHub</a>
+    <a href="https://github.com/levups/maptain">GitHub</a>
   </nav>
 
   <main id="content">
     <header class="hero">
-      <h1 class="wordmark">Mapitaine</h1>
+      <h1 class="wordmark"><img class="mark" src="logo.svg" alt="">Maptain</h1>
       <p class="byline"><span>Rails sitemaps that rewrite only what changed.</span><span class="byline-sub">Each build asks your database what moved since the last one, and leaves every other file alone.</span></p>
       <div>
         <p class="summary">A Rails gem that writes your XML sitemaps from your records: one small class per kind of page, the hreflang links of every language, files on disk or S3, IndexNow for Bing. After a few changes, a build runs hundreds of times faster than regenerating everything.</p>
-        <code class="install">gem "mapitaine"</code>
+        <code class="install">gem "maptain"</code>
         <p class="links"><a href="guide.html#getting-started">Get started</a><a href="benchmarks.html">Benchmarks</a></p>
       </div>
     </header>
@@ -47,14 +47,14 @@
         <h3>1. Describe a kind of page</h3>
         <p>One small class per kind of page: its records, and the URL of a record in a language. Its blocks have your route helpers.</p>
         <p class="code-label">app/sitemaps/product_sitemap.rb</p>
-<pre><code class="language-ruby"><span class="k">class</span> <span class="nc">ProductSitemap</span> <span class="o">&lt;</span> <span class="no">Mapitaine</span><span class="o">::</span><span class="no">Source</span>
+<pre><code class="language-ruby"><span class="k">class</span> <span class="nc">ProductSitemap</span> <span class="o">&lt;</span> <span class="no">Maptain</span><span class="o">::</span><span class="no">Source</span>
   <span class="n">scope</span> <span class="p">{</span> <span class="no">Product</span><span class="p">.</span><span class="nf">published</span> <span class="p">}</span>
   <span class="n">url</span> <span class="p">{</span> <span class="o">|</span><span class="n">product</span><span class="p">,</span> <span class="n">locale</span><span class="o">|</span> <span class="n">product_url</span><span class="p">(</span><span class="n">product</span><span class="p">,</span> <span class="n">locale</span><span class="p">:)</span> <span class="p">}</span>
 <span class="k">end</span></code></pre>
         <h3>2. Build</h3>
-        <p><code>mapitaine:check</code> shows what looks wrong before anything is written. <code>mapitaine:build</code> writes <code>public/sitemap.xml</code> and the files it lists.</p>
-<pre><code class="language-sh">bin/rails mapitaine:check
-bin/rails mapitaine:build</code></pre>
+        <p><code>maptain:check</code> shows what looks wrong before anything is written. <code>maptain:build</code> writes <code>public/sitemap.xml</code> and the files it lists.</p>
+<pre><code class="language-sh">bin/rails maptain:check
+bin/rails maptain:build</code></pre>
         <p>Every language of a page lists all the others and itself. Search engines ignore <code>hreflang</code> links that the page they point to does not return: written from the record, they cannot be wrong.</p>
         <p class="code-label">What comes out, for a site in English and French</p>
 <pre><code class="language-xml"><span class="nt">&lt;url&gt;</span>
@@ -72,7 +72,7 @@ bin/rails mapitaine:build</code></pre>
 <pre><code class="language-yaml"><span class="c1"># config/recurring.yml</span>
 <span class="na">production</span><span class="pi">:</span>
   <span class="na">sitemap</span><span class="pi">:</span>
-    <span class="na">command</span><span class="pi">:</span> <span class="s2">"</span><span class="s">Mapitaine.build"</span>
+    <span class="na">command</span><span class="pi">:</span> <span class="s2">"</span><span class="s">Maptain.build"</span>
     <span class="na">schedule</span><span class="pi">:</span> <span class="s">every hour</span></code></pre>
         <p>The <a href="guide.html">guide</a> covers the rest: records in some languages only, dates from several columns, files on S3, IndexNow.</p>
       </div>
@@ -80,7 +80,7 @@ bin/rails mapitaine:build</code></pre>
 
     <section aria-labelledby="speed-title">
       <h2 id="speed-title">How long it takes</h2>
-      <p class="note">The same sitemap built by Mapitaine and by sitemap_generator, on the same machine: 30,000 records in 24 languages, 720,000 URLs, each with the 25 <code>hreflang</code> links of its page. Seconds depend on the machine; how many times faster holds from one to the next.</p>
+      <p class="note">The same sitemap built by Maptain and by sitemap_generator, on the same machine: 30,000 records in 24 languages, 720,000 URLs, each with the 25 <code>hreflang</code> links of its page. Seconds depend on the machine; how many times faster holds from one to the next.</p>
       <div class="tiles">
         <div class="tile"><span class="tile-value">400×</span><span class="tile-label">faster when 3 records changed</span><span class="tile-detail">2 files rewritten out of 55, where sitemap_generator writes them all again</span></div>
         <div class="tile"><span class="tile-value">15×</span><span class="tile-label">faster for a full build</span><span class="tile-detail">Once a week, to catch what the database numbers cannot see</span></div>
@@ -128,7 +128,7 @@ bin/rails mapitaine:build</code></pre>
     <section aria-labelledby="fit-title">
       <h2 id="fit-title">Is it for you?</h2>
       <div class="prose">
-        <p>Mapitaine helps most on a site with records in a database, translated, changing a little every day: a shop, a catalogue, a blog in several languages. A site of a few hundred pages in one language does not need it; <a href="https://github.com/kjvarga/sitemap_generator">sitemap_generator</a> or a view that lists them will do.</p>
+        <p>Maptain helps most on a site with records in a database, translated, changing a little every day: a shop, a catalogue, a blog in several languages. A site of a few hundred pages in one language does not need it; <a href="https://github.com/kjvarga/sitemap_generator">sitemap_generator</a> or a view that lists them will do.</p>
         <p>It is young (0.1), it needs Ruby 3.3 and Rails 8.0 or newer, and its only runtime dependency is Active Support. It does not write video or news sitemaps yet, and a model needs an integer primary key. Coming from sitemap_generator, the <a href="guide.html#migrating">guide</a> maps one to the other.</p>
       </div>
     </section>
@@ -136,8 +136,9 @@ bin/rails mapitaine:build</code></pre>
     <section aria-labelledby="why-title">
       <h2 id="why-title">Where it comes from</h2>
       <div class="prose">
-        <p>Mapitaine was written for a site of about 30,000 pages in 24 languages, 720,000 URLs. At that size, a script that lists every URL again at each run spends nearly all its time on pages that did not change, and the links between languages are easy to get wrong by hand.</p>
-        <p>Sitemaps changed in the meantime. Google stopped reading <code>priority</code> and <code>changefreq</code>, the ping endpoints closed, IndexNow appeared, and an honest <code>lastmod</code> became the one signal worth sending. Mapitaine writes what search engines read today, and nothing else.</p>
+        <p>Maptain was written for a site of about 30,000 pages in 24 languages, 720,000 URLs. At that size, a script that lists every URL again at each run spends nearly all its time on pages that did not change, and the links between languages are easy to get wrong by hand.</p>
+        <p>Sitemaps changed in the meantime. Google stopped reading <code>priority</code> and <code>changefreq</code>, the ping endpoints closed, IndexNow appeared, and an honest <code>lastmod</code> became the one signal worth sending. Maptain writes what search engines read today, and nothing else.</p>
+        <p>The name is a sitemap with a captain's cap on: it keeps the files in order, and leaves alone the ones that did not change.</p>
       </div>
     </section>
 
@@ -151,10 +152,10 @@ bin/rails mapitaine:build</code></pre>
         <li><a href="https://levups.github.io/agentry/">Agentry</a></li>
         <li><a href="https://levups.github.io/gamba/">Gamba</a></li>
         <li><a href="https://levups.github.io/crumbly/">Crumbly</a></li>
-        <li><a href="https://levups.github.io/mapitaine/" aria-current="page">Mapitaine</a></li>
+        <li><a href="https://levups.github.io/maptain/" aria-current="page">Maptain</a></li>
       </ul>
     </nav>
-    <p><a href="https://github.com/levups/mapitaine">Source on GitHub</a></p>
+    <p><a href="https://github.com/levups/maptain">Source on GitHub</a></p>
   </footer>
 </div>
 </body>

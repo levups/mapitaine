@@ -6,7 +6,7 @@
 require "bundler/setup"
 require "active_record"
 require "benchmark"
-require "mapitaine"
+require "maptain"
 require "sitemap_generator"
 
 RECORD_COUNT = 30_000
@@ -25,7 +25,7 @@ end
 class Post < ActiveRecord::Base
 end
 
-class PostSitemap < Mapitaine::Source
+class PostSitemap < Maptain::Source
   scope { Post.all }
   url { |post, locale| "/#{locale}/posts/#{post.slug}" }
 end
@@ -36,22 +36,22 @@ Post.insert_all(Array.new(RECORD_COUNT) do |number|
 end)
 
 Dir.mktmpdir do |directory|
-  Mapitaine.configure do |config|
+  Maptain.configure do |config|
     config.host = "https://www.example.com"
     config.locales = LOCALES
     config.x_default = :en
-    config.storage = Mapitaine::Storage::Local.new(directory)
+    config.storage = Maptain::Storage::Local.new(directory)
     config.sources = [PostSitemap]
   end
 
   built = nil
-  puts format("Full build          %8.3f s", Benchmark.realtime { built = Mapitaine.build })
+  puts format("Full build          %8.3f s", Benchmark.realtime { built = Maptain.build })
   sizes = Dir[File.join(directory, "*.gz")].map { |path| [File.size(path), Zlib.gunzip(File.binread(path)).bytesize] }
   puts format("                    %d URLs in %d files, the largest %.1f MiB, %.1f MiB gzipped in all",
     built.url_count, sizes.size, sizes.map(&:last).max / 1_048_576.0, sizes.sum(&:first) / 1_048_576.0)
-  puts format("Nothing new         %8.3f s", Benchmark.realtime { Mapitaine.build })
+  puts format("Nothing new         %8.3f s", Benchmark.realtime { Maptain.build })
   Post.where(id: [5, 17_000, 17_001]).update_all(updated_at: Time.now)
-  puts format("3 records changed   %8.3f s", Benchmark.realtime { built = Mapitaine.build })
+  puts format("3 records changed   %8.3f s", Benchmark.realtime { built = Maptain.build })
   puts format("                    %d files written, %d kept", built.written.size, built.kept.size)
 end
 

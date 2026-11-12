@@ -34,6 +34,11 @@ pre .gd { color: var(--flagged); }
 @media (min-width: 52rem) { .hero { grid-template-columns: 1fr 1fr; } .hero .wordmark { grid-column: 1 / -1; } }
 /* The name is the brief: one line across the page, the tagline and the install block side by side below it. Big Shoulders sets a name of up to 9 letters within 3.5 em, so 24vw fits a phone and 19rem the 70rem page; the bottom margin clears the descenders. */
 .wordmark { font: 800 clamp(4.5rem, 24vw, 19rem)/0.8 "Big Shoulders Display", sans-serif; letter-spacing: -0.02em; margin: 0 0 0.12em; color: var(--accent); }
+/* The cap: a sitemap for a badge. Sized on the letters, so it scales with the wordmark and the nav brand. */
+.mark { height: 0.78em; width: auto; vertical-align: -0.02em; margin-right: 0.08em; }
+/* On the home page the cap sits on the M, tilted, rather than taking a place in the line. */
+.wordmark { position: relative; padding-top: 0.24em; }
+.wordmark .mark { position: absolute; height: 0.46em; left: 0.14em; top: -0.1em; margin: 0; transform: rotate(-8deg); }
 .byline { font-size: clamp(1.4rem, 2.6vw, 2rem); line-height: 1.2; font-weight: 600; margin: 0; }
 .byline span { display: block; }
 .byline-sub { color: var(--muted); font-weight: 400; }

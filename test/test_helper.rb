@@ -4,7 +4,7 @@ require "minitest/autorun"
 require "action_dispatch"
 require "active_record"
 require "active_support/core_ext/kernel/reporting"
-require "mapitaine"
+require "maptain"
 
 ActiveRecord::Base.establish_connection(adapter: "sqlite3", database: ":memory:")
 ActiveRecord::Schema.verbose = false
@@ -36,16 +36,16 @@ ROUTES.draw do
     get "about", to: "pages#about", as: :about
   end
 end
-Mapitaine::Source.include(ROUTES.url_helpers)
+Maptain::Source.include(ROUTES.url_helpers)
 
-class PostSitemap < Mapitaine::Source
+class PostSitemap < Maptain::Source
   scope { Post.published }
   url { |post, locale| post_url(post, locale:) }
   locales { |post| post.languages.split(",").map(&:to_sym) }
   shard_size 10
 end
 
-class PageSitemap < Mapitaine::Source
+class PageSitemap < Maptain::Source
   scope { %i[about] }
   url { |page, locale| public_send(:"#{page}_path", locale:) }
   lastmod { Date.new(2026, 1, 15) }
@@ -85,16 +85,16 @@ class MemoryStorage
   end
 end
 
-class MapitaineTest < Minitest::Test
+class MaptainTest < Minitest::Test
   LONG_AGO = Time.utc(2026, 1, 1, 12)
 
   attr_reader :storage
 
   def setup
     Post.delete_all
-    Mapitaine.reset_configuration
+    Maptain.reset_configuration
     @storage = MemoryStorage.new
-    Mapitaine.configure do |config|
+    Maptain.configure do |config|
       config.host = "https://example.com"
       config.locales = %i[en fr]
       config.x_default = :en
@@ -109,6 +109,6 @@ class MapitaineTest < Minitest::Test
 
   def build(...)
     storage.forget_calls
-    Mapitaine.build(...)
+    Maptain.build(...)
   end
 end

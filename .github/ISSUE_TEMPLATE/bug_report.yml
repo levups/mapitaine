@@ -14,13 +14,13 @@ body:
     id: expected
     attributes:
       label: Expected and actual output
-      description: The XML or the files you expected, what `Mapitaine.build` wrote instead, or the error and its backtrace.
+      description: The XML or the files you expected, what `Maptain.build` wrote instead, or the error and its backtrace.
     validations:
       required: true
   - type: input
     id: versions
     attributes:
       label: Versions
-      placeholder: Mapitaine 0.1.0 (or commit), Rails 8.1, Ruby 4.0.1, PostgreSQL 18
+      placeholder: Maptain 0.1.0 (or commit), Rails 8.1, Ruby 4.0.1, PostgreSQL 18
     validations:
       required: true
