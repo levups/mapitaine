@@ -6,9 +6,10 @@ module Mapitaine
     ENDPOINT = URI("https://api.indexnow.org/indexnow")
     MAX_URLS_PER_REQUEST = 10_000
     HEADERS = {"Content-Type" => "application/json; charset=utf-8"}.freeze
-    # The last three: a proxy that refuses, and a reply that is not HTTP. Net::HTTPBadResponse is no ProtocolError.
+    # The last four: a proxy that refuses, and a reply that is not HTTP or not the gzip it claims to be.
+    # Net::HTTPBadResponse is no ProtocolError.
     NETWORK_ERRORS = [SystemCallError, SocketError, Timeout::Error, OpenSSL::SSL::SSLError, EOFError,
-      Net::ProtocolError, Net::HTTPBadResponse, Net::HTTPHeaderSyntaxError].freeze
+      Net::ProtocolError, Net::HTTPBadResponse, Net::HTTPHeaderSyntaxError, Zlib::Error].freeze
 
     def initialize(key:, key_path: nil, transport: Net::HTTP.method(:post))
       @key = key

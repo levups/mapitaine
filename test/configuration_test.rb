@@ -24,12 +24,12 @@ class ConfigurationTest < MapitaineTest
   end
 
   def test_a_host_for_a_language_the_site_does_not_have_is_refused_when_a_build_starts
-    Mapitaine.configuration.host_by_locale = {"FR" => "https://fr.example.com", :de => "https://de.example.com"}
+    Mapitaine.configuration.host_by_locale = {"FR" => "https://fr.example.com", :pt_BR => "https://br.example.com"}
 
     assert_equal 'host_by_locale["FR"] is not one of the locales: en, fr', assert_raises(Mapitaine::ConfigurationError) { build }.message
     assert_raises(Mapitaine::ConfigurationError) { Mapitaine.check }
     assert_empty storage.writes
-    Mapitaine.configuration.locales = %i[en FR de]
+    Mapitaine.configuration.locales = %i[en FR pt_BR]
 
     assert_empty build.warnings
   end

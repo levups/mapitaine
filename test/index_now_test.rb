@@ -275,12 +275,12 @@ class IndexNowTest < MapitaineTest
 
   def test_a_reply_that_cannot_be_read_and_a_proxy_that_refuses_are_network_errors
     errors = [Net::HTTPBadResponse.new("wrong status line"), Net::HTTPHeaderSyntaxError.new("wrong Content-Length format"),
-      Net::HTTPFatalError.new("503", nil)]
+      Zlib::DataError.new("incorrect header check"), Net::HTTPFatalError.new("503", nil)]
     statuses = errors.map do |error|
       Mapitaine::IndexNow.new(key: "key", transport: ->(*) { raise error }).submit("https://example.com", %w[https://example.com/1]).first.status
     end
 
-    assert_equal %w[Net::HTTPBadResponse Net::HTTPHeaderSyntaxError Net::HTTPFatalError], statuses
+    assert_equal %w[Net::HTTPBadResponse Net::HTTPHeaderSyntaxError Zlib::DataError Net::HTTPFatalError], statuses
   end
 
   def test_an_endpoint_that_cannot_be_reached_is_tried_once_however_many_batches_wait
