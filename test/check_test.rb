@@ -18,8 +18,7 @@ class CheckTest < MapitaineTest
     Mapitaine.configuration.sources = [wrong]
 
     assert_equal [
-      "post: https://example.org/en is outside https://example.com",
-      "post: https://example.org/fr is outside https://example.com",
+      "post: https://example.org/en is outside https://example.com, and 1 more like it",
       "post: https://example.org/en has a lastmod in the future (2999-01-01T00:00:00Z)",
       "post: https://example.com/same is the URL of every language of its page: does the url block use the locale?",
       "post: https://example.com/same is listed twice"
@@ -33,10 +32,28 @@ class CheckTest < MapitaineTest
     elsewhere = Class.new(PostSitemap) { url { |post, locale| (post.id == 1) ? post_url(post, locale:) : "https://#{locale}.example.org/#{post.id}" } }
     Mapitaine.configuration.sources = [elsewhere]
 
+    assert_equal ["post: https://en.example.org/2 is outside https://example.com and the hosts of its other languages, and 1 more like it"],
+      Mapitaine.check.map(&:to_s)
+  end
+
+  def test_a_mistake_many_urls_of_a_source_share_is_reported_once_with_how_many_others
+    [1, 2, 12].each { |id| create_post(id, updated_at: Time.utc(2999, 1, id)) }
+    elsewhere = Class.new(PostSitemap) { url { |post, locale| "https://www.example.com/#{locale}/posts/#{post.id}" } }
+    forgetful = Class.new(PostSitemap) do
+      slug "forgetful"
+      url { |_post, locale| "/#{locale}/posts" }
+    end
+    Mapitaine.configuration.sources = [elsewhere, forgetful]
+    warnings = Mapitaine.check
+
     assert_equal [
-      "post: https://en.example.org/2 is outside https://example.com and the hosts of its other languages",
-      "post: https://fr.example.org/2 is outside https://example.com and the hosts of its other languages"
-    ], Mapitaine.check.map(&:to_s)
+      "post: https://www.example.com/en/posts/1 is outside https://example.com, and 5 more like it",
+      "post: https://www.example.com/en/posts/1 has a lastmod in the future (2999-01-01T00:00:00Z), and 2 more like it",
+      "forgetful: https://example.com/en/posts has a lastmod in the future (2999-01-01T00:00:00Z), and 2 more like it",
+      "forgetful: https://example.com/en/posts is listed twice, and 3 more like it"
+    ], warnings.map(&:to_s)
+    assert_equal [5, 2, 2, 3], warnings.map(&:others)
+    assert_equal "is listed twice", warnings.last.message
   end
 
   def test_a_long_url_a_wrong_hreflang_and_a_lastmod_that_is_not_a_date_are_reported
@@ -49,8 +66,7 @@ class CheckTest < MapitaineTest
     Mapitaine.configuration.sources = [wrong]
 
     assert_equal [
-      "post: https://example.com/en/#{"a" * 2_100} is longer than 2048 characters",
-      "post: https://example.com/english/#{"a" * 2_100} is longer than 2048 characters",
+      "post: https://example.com/en/#{"a" * 2_100} is longer than 2048 characters, and 1 more like it",
       %(post: https://example.com/english/#{"a" * 2_100} has hreflang "english", not a language code),
       %(post: https://example.com/en/#{"a" * 2_100} has a lastmod that is not a W3C date ("yesterday"), left out)
     ], Mapitaine.check.map(&:to_s)
@@ -92,8 +108,9 @@ class CheckTest < MapitaineTest
 
   def test_a_build_reports_what_it_renders
     create_post(1, updated_at: Time.utc(2999, 1, 1))
+    create_post(2, updated_at: Time.utc(2999, 1, 1))
 
-    assert_equal 1, build.warnings.size
+    assert_equal [1], build.warnings.map(&:others)
     assert_empty build.warnings
   end
 end

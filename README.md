@@ -260,7 +260,8 @@ It renders every sitemap without publishing or submitting anything, and fails on
 - a `lastmod` in the future, or one that is not a W3C date, which is then left out;
 - an index with more than the 50,000 files it may hold.
 
-A build reports the same, for the files it rewrites, in `warnings`.
+When many URLs of a source make the same mistake, one line names the first and counts the others. A build
+reports the same, for the files it rewrites, in `warnings`.
 
 ## Instrumentation
 
