@@ -2,13 +2,18 @@
 
 module Mapitaine
   class Configuration
-    attr_accessor :filename, :index_now_key, :index_now_key_location, :load_sources, :storage, :x_default
+    # A full build now and then catches what no fingerprint sees: update_columns, a change in another table,
+    # a new url block, a file removed from the storage.
+    DEFAULT_REBUILD_EVERY_SECONDS = 7 * 24 * 60 * 60
+
+    attr_accessor :filename, :index_now_key, :index_now_key_location, :load_sources, :rebuild_every, :storage, :x_default
     attr_reader :host
     attr_writer :locales, :sitemaps_url, :sources
 
     def initialize
       @filename = "sitemap"
       @load_sources = -> {}
+      @rebuild_every = DEFAULT_REBUILD_EVERY_SECONDS
       @storage = Storage::Local.new("public")
     end
 

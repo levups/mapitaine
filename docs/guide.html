@@ -142,8 +142,12 @@ bin/rails mapitaine:rebuild   <span class="c"># rewrite everything</span></code>
     <span class="na">command</span><span class="pi">:</span> <span class="s2">"</span><span class="s">Mapitaine.build"</span>
     <span class="na">schedule</span><span class="pi">:</span> <span class="s">every hour</span></code></pre>
         <h3>How a build decides</h3>
-        <p>For each source, one query groups the records by range of ids and returns the count and the latest change of each. A range whose answer is the one the last build stored keeps its file. The others are rendered again. Nothing hooks into your models, so <code>update_all</code>, imports and deletions are seen too.</p>
-        <p>A build writes the sitemap files first, then the index, then removes the files no range fills any more, then writes <code>sitemap-manifest.json</code>, its memory of what each file held. A build that fails midway is repaired by the next one. Changing the host, the languages or the version of Mapitaine rewrites everything once.</p>
+        <p>For each source, one query groups the records by range of ids and returns the count, the sum of the ids and the latest change of each. A range whose answer is the one the last build stored keeps its file. The others are rendered again, and a file that comes out the same is not uploaded. Nothing hooks into your models, so <code>update_all</code>, imports and deletions are seen too.</p>
+        <p>In the index, a file that changed takes the latest <code>lastmod</code> it holds, or the time of the build when a record left it, so that crawlers read it again.</p>
+        <p>Some changes leave those numbers alone: <code>update_columns</code>, a change in another table that the <code>url</code>, <code>locales</code> or <code>images</code> blocks read, a new <code>url</code> block, a file someone removed from the storage. Name the other table in <code>fingerprint</code>, or <code>touch</code> the record from it. For the rest, a full build comes once a week by itself:</p>
+<pre><code class="language-ruby"><span class="n">config</span><span class="p">.</span><span class="nf">rebuild_every</span> <span class="o">=</span> <span class="mi">1</span><span class="p">.</span><span class="nf">day</span>   <span class="c1"># default: a week; nil leaves it to mapitaine:rebuild</span></code></pre>
+        <p>After deploying a change to a <code>url</code> block, run <code>mapitaine:rebuild</code> rather than wait.</p>
+        <p>A build notes the files it is about to add in <code>sitemap-manifest.json</code>, its memory of what each file held, then writes the sitemap files, then the index, then removes the files no range fills any more, then writes the manifest again. A build that fails midway is repaired by the next one. Changing the host, the languages, the size of a range or the version of Mapitaine rewrites everything it moves once.</p>
       </div>
     </section>
 

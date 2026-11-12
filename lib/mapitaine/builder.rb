@@ -14,6 +14,8 @@ module Mapitaine
     # A language, then maybe a script and a region: en, pt-BR, zh-Hant-TW, es-419.
     HREFLANG = /\A[a-z]{2,3}(-[a-z]{4})?(-([a-z]{2}|\d{3}))?\z/i
 
+    Rendered = Data.define(:source, :shard, :fingerprint, :files, :changed_urls)
+
     Warning = Data.define(:source, :url, :message) do
       def to_s
         "#{source}: #{url} #{message}"
@@ -37,8 +39,11 @@ module Mapitaine
     def build_in(directory, full:)
       @directory = directory
       @previous = Manifest.read(@storage, manifest_name)
-      @reusable = !full && @previous.digest == @configuration.digest
-      @manifest = Manifest.new(digest: @configuration.digest, built_at: Time.now)
+      @previous_file_by_name = @previous.files.to_h { |file| [file["name"], file] }
+      built_at = Time.now
+      @full = full || rebuild_due?(built_at)
+      @reusable = !@full && @previous.digest == @configuration.digest
+      @manifest = Manifest.new(digest: @configuration.digest, built_at:, rebuilt_at: @full ? built_at : @previous.rebuilt_at)
       @written = []
       @kept = []
       @warnings = []
@@ -47,9 +52,12 @@ module Mapitaine
       @reported = Set.new
       @x_default = Xml.hreflang(@configuration.x_default)
 
+      @rendered = []
+
       @configuration.sources.each { |source_class| build_source(source_class.new(@configuration)) }
+      publish_rendered
       publish_index
-      deleted = @previous.file_names - @manifest.file_names
+      deleted = (@previous.file_names | @previous.pending) - @manifest.file_names
       deleted.each { |name| @storage.delete(name) }
       upload(manifest_name, @manifest.to_json)
 
@@ -64,7 +72,7 @@ module Mapitaine
         if fingerprint && stored && stored["fingerprint"] == fingerprint
           keep(source, shard, stored)
         else
-          render(source, shard, fingerprint, stored, seen_urls)
+          render(source, shard, fingerprint, seen_urls)
         end
       end
     end
@@ -74,7 +82,7 @@ module Mapitaine
       @kept.concat(stored["files"].map { |file| file["name"] })
     end
 
-    def render(source, shard, fingerprint, stored, seen_urls)
+    def render(source, shard, fingerprint, seen_urls)
       writer = ShardWriter.new(directory: @directory, basename: source.basename(shard))
       changed_urls = []
       ActiveSupport::Notifications.instrument("shard.mapitaine", source: source.slug, shard:) do
@@ -87,21 +95,64 @@ module Mapitaine
       end
 
       fingerprint ||= writer.content_digest
-      return keep(source, shard, stored) if stored && stored["fingerprint"] == fingerprint
-
-      publish(source, shard, fingerprint, writer.files)
-      @changed_urls.concat(changed_urls)
+      # Recorded now, published once every shard is rendered: the index keeps the order of the sources.
+      @manifest.record(source.slug, shard, fingerprint:, files: [])
+      @rendered << Rendered.new(source: source.slug, shard:, fingerprint:, files: writer.files, changed_urls:)
     end
 
-    def publish(source, shard, fingerprint, files)
-      files.each do |file|
-        @storage.write(file.name, file.path)
-        File.delete(file.path)
+    def publish_rendered
+      changed_names = @rendered.flat_map(&:files).reject { |file| same_as_before?(file) }.to_set(&:name)
+      announce_new_files(changed_names)
+      @rendered.each do |rendered|
+        changed = rendered.files.select { |file| changed_names.include?(file.name) }
+        rendered.files.each { |file| publish(file, changed.include?(file)) }
+        @manifest.record(rendered.source, rendered.shard, fingerprint: rendered.fingerprint,
+          files: rendered.files.map { |file| manifest_entry(file, changed.include?(file)) })
+        @changed_urls.concat(rendered.changed_urls) if changed.any?
       end
-      @written.concat(files.map(&:name))
-      @manifest.record(source.slug, shard, fingerprint:, files: files.map do |file|
-        {"name" => file.name, "urls" => file.url_count, "lastmod" => file.lastmod}
-      end)
+    end
+
+    def same_as_before?(file)
+      @previous_file_by_name.dig(file.name, "digest") == file.digest
+    end
+
+    # Recorded before the first upload, so that a build dying midway leaves no file the next one cannot remove.
+    def announce_new_files(names)
+      new_names = names.to_a - @previous_file_by_name.keys - @previous.pending
+      return if new_names.empty?
+
+      @previous.pending.concat(new_names)
+      upload(manifest_name, @previous.to_json)
+    end
+
+    # A full build uploads every file, so that it also repairs a storage that lost one.
+    def publish(file, changed)
+      if changed || @full
+        @storage.write(file.name, file.path)
+        @written << file.name
+      else
+        @kept << file.name
+      end
+      File.delete(file.path)
+    end
+
+    # The index tells crawlers which files to read again: a file that changed gets a later date even when the
+    # change is a removal, and one that did not keeps its date.
+    def manifest_entry(file, changed)
+      previous_lastmod = @previous_file_by_name.dig(file.name, "lastmod")
+      lastmod = if !changed
+        previous_lastmod
+      elsif @previous_file_by_name.key?(file.name) && (file.lastmod.nil? || (previous_lastmod && file.lastmod <= previous_lastmod))
+        @manifest.built_at.getutc.iso8601
+      else
+        file.lastmod
+      end
+      {"name" => file.name, "urls" => file.url_count, "lastmod" => lastmod, "digest" => file.digest}
+    end
+
+    def rebuild_due?(now)
+      every = @configuration.rebuild_every
+      every.present? && (@previous.rebuilt_at.nil? || @previous.rebuilt_at + every <= now)
     end
 
     def publish_index

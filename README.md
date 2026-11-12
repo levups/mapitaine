@@ -26,8 +26,9 @@ on each run is time spent on pages that did not change. It works differently fro
 - A page is one record in several languages, not a list of unrelated URLs. The `hreflang` links come from that:
   every language lists all the others and itself, which search engines require before they trust any of them.
 - Each file holds a fixed range of ids, so a record stays in the same file from one build to the next. A build
-  asks the database one question per source, the count and the latest change of each range, and rewrites only
-  the files whose answer moved. No callback in your models: `update_all`, imports and deletions are seen too.
+  asks the database one question per source, the count, the sum of the ids and the latest change of each range,
+  and rewrites only the files whose answer moved. No callback in your models: `update_all`, imports and deletions
+  are seen too, and a full build once a week catches what leaves those numbers alone.
 - `lastmod` is the only hint search engines still read, so it is the date your content changed, in the files
   and in the index. `priority` and `changefreq`, which Google ignores, are not written.
 - Search engines are told through [IndexNow](https://www.indexnow.org) which URLs changed. The ping endpoints
@@ -159,9 +160,27 @@ production:
     schedule: every hour
 ```
 
-A build writes the sitemap files first, then the index, then removes the files no range fills any more, then
-writes `sitemap-manifest.json`, its memory of what each file held. A build that fails midway is repaired by the
-next one. Changing the host, the languages or the version of Mapitaine rewrites everything once.
+### How a build decides
+
+For each source, one query groups the records by range of ids and returns the count, the sum of the ids and the
+latest change of each. A range whose answer is the one the last build stored keeps its file. The others are
+rendered again, and a file that comes out the same is not uploaded. In the index, a file that changed takes the
+latest `lastmod` it holds, or the time of the build when a record left it, so that crawlers read it again.
+
+Some changes leave those numbers alone: `update_columns`, a change in another table that the `url`, `locales` or
+`images` blocks read, a new `url` block, a file someone removed from the storage. Name the other table in
+`fingerprint`, or `touch` the record from it. For the rest, a full build comes once a week by itself:
+
+```ruby
+config.rebuild_every = 1.day   # default: a week; nil leaves it to mapitaine:rebuild
+```
+
+After deploying a change to a `url` block, run `mapitaine:rebuild` rather than wait.
+
+A build notes the files it is about to add in `sitemap-manifest.json`, its memory of what each file held, then
+writes the sitemap files, then the index, then removes the files no range fills any more, then writes the
+manifest again. A build that fails midway is repaired by the next one. Changing the host, the languages, the
+size of a range or the version of Mapitaine rewrites everything it moves once.
 
 ## Storage
 
